@@ -157,3 +157,8 @@ Release APKs are signed with the key in `android/keystore.properties` locally, o
 and `ANDROID_KEYSTORE_PASSWORD` repository secrets on GitHub (neither is committed; keep a backup of the key,
 or phones can't update the app without reinstalling). Running the workflow by hand from the Actions tab builds
 everything as downloadable artifacts without making a release.
+
+## License
+
+[GPL-3.0](LICENSE). You may use, change and share Music Tools; if you share a changed version, share its source
+under the same license.
