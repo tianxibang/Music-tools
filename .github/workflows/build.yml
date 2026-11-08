@@ -48,7 +48,12 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-      - uses: android-actions/setup-android@v3
+      # The runner image ships the Android SDK (ANDROID_HOME); just add what the app builds against
+      - name: Android SDK packages
+        run: |
+          sdkmanager="$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -1)"
+          yes | "$sdkmanager" --licenses > /dev/null || true
+          "$sdkmanager" "platforms;android-35" "build-tools;35.0.0"
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.13"
