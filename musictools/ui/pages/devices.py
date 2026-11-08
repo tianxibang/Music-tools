@@ -6,7 +6,7 @@ from PySide6.QtGui import QColor, QFont, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QDialog, QHeaderView, QLabel, QMessageBox, QTableWidget,
                                QTableWidgetItem, QVBoxLayout)
 
-from ...core.netsync import security
+from ...core.netsync import security, usb
 from ...core.netsync.server import SyncServer, local_addresses
 from ...core.util import SETTINGS, human_duration
 from .. import theme
@@ -146,6 +146,11 @@ class DevicesPage(Page):
         card.add(label("With pairing, only devices you approved with a code can see or add music. Turn it off "
                        "to let any device on your home network sync without a code; connections are still "
                        "encrypted and outside networks are always refused.", "hint", wrap=True))
+        self.usb = Toggle("Also sync over a USB cable (needs USB debugging on the phone)", SETTINGS["net_usb"])
+        self.usb.toggled.connect(self._toggle_usb)
+        card.add(self.usb)
+        self.usb_status = label("", "hint")
+        card.add(self.usb_status)
         if sys.platform.startswith("linux"):
             card.add(label(f"Phone can't find the PC? Your firewall may block it: "
                            f"sudo firewall-cmd --add-port={SETTINGS['net_port']}/tcp --add-service=mdns --permanent "
@@ -177,6 +182,10 @@ class DevicesPage(Page):
         self.refresh_timer = QTimer(self)
         self.refresh_timer.timeout.connect(self._refresh)
         self.refresh_timer.start(3000)
+        self.usb_timer = QTimer(self)
+        self.usb_timer.timeout.connect(self._check_usb)
+        self.usb_timer.start(5000)
+        self._usb_checking = False
         if SETTINGS["net_enabled"]:
             QTimer.singleShot(0, lambda: self._toggle_server(True))
         self._refresh()
@@ -187,6 +196,8 @@ class DevicesPage(Page):
     def shutdown(self):
         if self.server.running:
             self.server.stop()
+            if SETTINGS["net_usb"]:
+                usb.unlink_usb_phones(self.server.port)
 
     # --- server
 
@@ -206,6 +217,31 @@ class DevicesPage(Page):
             SETTINGS["net_enabled"] = False
         self._refresh()
 
+    def _toggle_usb(self, on):
+        SETTINGS["net_usb"] = on
+        SETTINGS.save()
+        if not on and self.server.running:
+            port = self.server.port
+            self.bg.run(lambda: usb.unlink_usb_phones(port))
+        self._check_usb()
+
+    def _check_usb(self):
+        """Keep the cable link up for phones plugged in by USB (they may come and go)."""
+        if not (self.server.running and SETTINGS["net_usb"]):
+            self.usb_status.setText("")
+            return
+        if self._usb_checking:
+            return
+        self._usb_checking = True
+        port = self.server.port
+
+        def done(res):
+            self._usb_checking = False
+            phones = res if isinstance(res, list) else []
+            self.usb_status.setText(f"Linked by USB: {', '.join(phones)}" if phones else
+                                    "No phone plugged in by USB.")
+        self.bg.run(lambda: usb.link_usb_phones(port), done)
+
     def _toggle_secure(self, on):
         if not on and QMessageBox.warning(
                 self, "Turn off pairing?", "Any device on your home network will be able to download your "
@@ -221,6 +257,7 @@ class DevicesPage(Page):
             self.server.stop()
             self.server.start()
         self._refresh()
+        self._check_usb()
 
     def pair(self):
         if not self.server.running:
@@ -262,7 +299,8 @@ class DevicesPage(Page):
             name = QTableWidgetItem(d.name)
             name.setData(Qt.UserRole, d.id)
             cells = [name, QTableWidgetItem("Phone" if d.kind == "phone" else "PC"),
-                     QTableWidgetItem(_ago(d.last_seen)), QTableWidgetItem(d.last_ip)]
+                     QTableWidgetItem(_ago(d.last_seen)),
+                     QTableWidgetItem("USB" if d.last_ip in ("127.0.0.1", "::1") else d.last_ip)]
             for c, item in enumerate(cells):
                 self.dev_table.setItem(r, c, item)
 

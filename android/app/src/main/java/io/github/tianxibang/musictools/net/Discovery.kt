@@ -7,12 +7,33 @@ import android.net.wifi.WifiManager
 import android.os.Build
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
+import io.github.tianxibang.musictools.sync.SyncEngine
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.withContext
 import java.util.concurrent.Executors
 
-/** A Music Tools PC announced on the local network. */
+/** A Music Tools PC announced on the local network, or reachable over a USB cable. */
 data class FoundPc(val name: String, val id: String, val host: String, val port: Int, val shortFingerprint: String,
-                   val open: Boolean)
+                   val open: Boolean, val usb: Boolean = false)
+
+/** The PC behind a USB cable (forwarded with adb reverse), checked every few seconds; null when there's none. */
+fun usbPc(): Flow<FoundPc?> = flow {
+    while (true) {
+        val pc = withContext(Dispatchers.IO) {
+            runCatching {
+                val c = SyncClient(SyncEngine.USB_HOST, Protocol.DEFAULT_PORT, "0".repeat(32), null, null)
+                val info = c.info()
+                FoundPc(info.name, info.id, SyncEngine.USB_HOST, Protocol.DEFAULT_PORT,
+                    c.seenFingerprint.orEmpty().take(16), info.pairing == "open", usb = true)
+            }.getOrNull()
+        }
+        emit(pc)
+        delay(3000)
+    }
+}
 
 /** PCs running the sync server, found via mDNS. Emits the full list whenever it changes. */
 fun discoverPcs(context: Context): Flow<List<FoundPc>> = callbackFlow {

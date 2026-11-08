@@ -2,6 +2,7 @@ package io.github.tianxibang.musictools.net
 
 import io.github.tianxibang.musictools.data.PairedPc
 import io.github.tianxibang.musictools.data.Prefs
+import io.github.tianxibang.musictools.sync.SyncEngine
 import java.io.IOException
 
 object Pairing {
@@ -19,7 +20,9 @@ object Pairing {
                 if (shortFingerprint != null && shortFingerprint.isNotEmpty() && !fp.startsWith(shortFingerprint)) {
                     throw SyncException(0, "This PC doesn't match the one announced on the network")
                 }
-                val pc = PairedPc(res.id, res.name, listOf(host) + hosts.filter { it != host }, port, fp, res.token)
+                // The USB address is always tried anyway, so only network addresses are remembered
+                val known = (listOf(host) + hosts.filter { it != host }).filter { it != SyncEngine.USB_HOST }
+                val pc = PairedPc(res.id, res.name, known, port, fp, res.token)
                 prefs.setPc(pc)
                 return pc
             } catch (e: SyncException) {
@@ -42,7 +45,7 @@ object Pairing {
         val fp = client.seenFingerprint ?: throw SyncException(0, "No certificate from the PC")
         if (!Protocol.same(fp, info.fingerprint)) throw SyncException(0, "Certificate mismatch")
         client.manifest()  // confirms access really works
-        val pc = PairedPc(info.id, info.name, listOf(host), port, fp, null)
+        val pc = PairedPc(info.id, info.name, listOf(host).filter { it != SyncEngine.USB_HOST }, port, fp, null)
         prefs.setPc(pc)
         return pc
     }

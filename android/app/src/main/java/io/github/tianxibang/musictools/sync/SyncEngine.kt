@@ -75,7 +75,7 @@ class SyncEngine(private val context: Context, private val log: SyncLog) {
         val result = SyncResult()
         log.status("Looking for ${pc.name}…")
         val client = connect(pc)
-        log.line("Connected to ${pc.name} at ${client.host}", Level.OK)
+        log.line("Connected to ${pc.name} " + if (client.host == USB_HOST) "by USB cable" else "at ${client.host}", Level.OK)
         try {
             sendNewFlacs(client, result)
             finishPending(client, result)
@@ -90,10 +90,15 @@ class SyncEngine(private val context: Context, private val log: SyncLog) {
         return result
     }
 
-    /** Last known addresses first, then whatever the network announces for this PC's id. */
+    /**
+     * USB cable first (the PC forwards our localhost with `adb reverse`; refused instantly without a
+     * cable), then the last known addresses, then whatever the network announces for this PC's id.
+     */
     private suspend fun connect(pc: PairedPc): SyncClient {
         val s = prefs.settings
         fun client(host: String, port: Int) = SyncClient(host, port, prefs.deviceId, pc.fingerprint, pc.token)
+        // Anything else on the phone could listen on localhost, but it can't show the PC's pinned certificate
+        runCatching { client(USB_HOST, pc.port).also { it.info() } }.getOrNull()?.let { return it }
         for (host in pc.hosts) {
             currentCoroutineContext().ensureActive()
             val c = client(host, pc.port)
@@ -108,7 +113,7 @@ class SyncEngine(private val context: Context, private val log: SyncLog) {
         val found = withTimeoutOrNull(6000) {
             discoverPcs(context).first { list -> list.any { it.id == pc.id } }.first { it.id == pc.id }
         } ?: throw IOException("Couldn't reach ${pc.name}. Is Music Tools running with sync turned on, " +
-            "and is the phone on the same network${if (s.wifiOnly) " (Wi-Fi)" else ""}?")
+            "and is the phone on the same network${if (s.wifiOnly) " (Wi-Fi)" else ""} or plugged in by USB?")
         val c = client(found.host, found.port)
         c.info()
         prefs.rememberHost(found.host, found.port)
@@ -276,6 +281,8 @@ class SyncEngine(private val context: Context, private val log: SyncLog) {
     }
 
     companion object {
+        const val USB_HOST = "127.0.0.1"
+
         /** [root]/[rel], or null if the path tries to leave [root]. The PC is trusted, but not that much. */
         fun safeChild(root: File, rel: String): File? {
             if (rel.isEmpty() || rel.startsWith("/") || rel.contains('\\') || rel.contains('\u0000')) return null

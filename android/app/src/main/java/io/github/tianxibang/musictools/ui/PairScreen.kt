@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -47,6 +48,7 @@ import io.github.tianxibang.musictools.net.Pairing
 import io.github.tianxibang.musictools.net.PairingInvite
 import io.github.tianxibang.musictools.net.Protocol
 import io.github.tianxibang.musictools.net.discoverPcs
+import io.github.tianxibang.musictools.net.usbPc
 import io.github.tianxibang.musictools.sync.SyncWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.emptyFlow
@@ -67,7 +69,9 @@ fun PairScreen() {
     var target by remember { mutableStateOf<Target?>(null) }
     var manual by remember { mutableStateOf(false) }
     val discovery = remember { runCatching { discoverPcs(context) }.getOrDefault(emptyFlow()) }
-    val found by discovery.collectAsStateWithLifecycle(emptyList())
+    val network by discovery.collectAsStateWithLifecycle(emptyList())
+    val cable by remember { usbPc() }.collectAsStateWithLifecycle(null)
+    val found = listOfNotNull(cable) + network
 
     fun attempt(block: () -> Unit) {
         busy = true
@@ -114,12 +118,12 @@ fun PairScreen() {
             }
         }
 
-        Section("PCs on this network") {
+        Section("PCs nearby") {
             if (found.isEmpty()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                     Spacer(Modifier.width(10.dp))
-                    Hint("Looking… (the PC needs sync turned on)")
+                    Hint("Looking on the network and USB… (the PC needs sync turned on)")
                 }
             }
             found.forEach { pc -> FoundRow(pc) { target = Target(pc.name, listOf(pc.host), pc.port, pc.shortFingerprint, pc.open) } }
@@ -154,11 +158,15 @@ fun PairScreen() {
 private fun FoundRow(pc: FoundPc, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically) {
-        Icon(if (pc.open) Icons.Default.LockOpen else Icons.Default.Computer, null, tint = Palette.AccentHi)
+        Icon(when {
+            pc.usb -> Icons.Default.Usb
+            pc.open -> Icons.Default.LockOpen
+            else -> Icons.Default.Computer
+        }, null, tint = Palette.AccentHi)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(pc.name)
-            Hint("${pc.host}:${pc.port}${if (pc.open) " · no pairing needed" else ""}")
+            Hint((if (pc.usb) "via USB cable" else "${pc.host}:${pc.port}") + if (pc.open) " · no pairing needed" else "")
         }
     }
 }

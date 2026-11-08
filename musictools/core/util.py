@@ -51,6 +51,7 @@ DEFAULTS = {
     "net_enabled": False,
     "net_port": 47321,
     "net_require_pairing": True,
+    "net_usb": True,
 }
 
 
