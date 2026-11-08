@@ -8,6 +8,7 @@ It replaces `flac2opus.fish`, `sync-music.fish` and `flattenplaylist.fish`, and 
 | Dashboard | Library stats, phone status, watch folder, **one-click pipeline** (convert → cover art → loudness → playlists → sync) |
 | Convert | FLAC → Opus in parallel, skips finished files, finds orphaned Opus files |
 | Sync to phone | adb mirror over **USB or Wi-Fi** (pair / connect / find on network), preview before changing anything |
+| Devices | Sync server for the Music Tools phone app (in progress): FLACs from the phone are added to the library and come back as Opus |
 | Tag editor | Searchable table, bulk-edit tags and covers, rename files from tags, tags from file names. Edits carry over to the Opus copies |
 | Health check | Missing tags/art, duplicates (review and move extras to the trash), corrupt files, FLACs made from MP3s (spectrum check) |
 | Art & loudness | Fetch missing covers (MusicBrainz), copy covers into Opus, ReplayGain/R128 loudness tags |
@@ -48,6 +49,20 @@ git tag v2.0 && git push music-tools v2.0
 
 The **build** workflow can also be started by hand from the Actions tab; those builds show up as workflow
 artifacts instead of a release.
+
+## Network sync (Devices page)
+
+Turn on **Let devices sync with this PC** and pair the phone app by scanning the QR code. The PC must be the
+one with your FLAC library: it files new FLACs from the phone with your sort template, keeps them, and
+sends the Opus version back.
+
+- **Pairing (default):** each device pairs once with a one-time code. Connections are encrypted (TLS with a
+  certificate created on first start) and the phone pins that certificate, so nobody can listen in or pretend
+  to be your PC.
+- **Open mode:** turn off “Require pairing” to skip codes. Any device on your home network can then sync;
+  traffic is still encrypted, and connections from outside your local network are always refused.
+- Headless, e.g. on an always-on PC: `music-tools --serve` (add `--pair` to print a pairing code).
+- Linux firewall: `sudo firewall-cmd --add-port=47321/tcp --add-service=mdns --permanent && sudo firewall-cmd --reload`
 
 ## External programs
 

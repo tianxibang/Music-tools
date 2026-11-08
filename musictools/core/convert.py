@@ -63,37 +63,19 @@ def convert(ctx, library, opus, bitrate=128, jobs=4, dry=False):
     ctx.log(f"Encoding at {bitrate} kbps with {jobs} parallel jobs using {kind}…")
     start = time.time()
 
-    def encode(f, out):
+    def one(f, out):
         if ctx.cancelled:
             return False
-        # Write to .part first and only rename once the encoder succeeds, so a cancel or
-        # a bad file never leaves a broken .opus that would be skipped next time.
-        tmp = out.with_name(out.name + ".part")
-        if kind == "opusenc":
-            cmd = [exe, "--quiet", "--bitrate", str(bitrate), str(f), str(tmp)]
-        else:
-            cmd = [exe, "-nostdin", "-loglevel", "error", "-y", "-i", str(f), "-map", "0:a",
-                   "-map_metadata", "0", "-c:a", "libopus", "-b:a", f"{bitrate}k", "-f", "ogg", str(tmp)]
-        code, _, err = ctx.popen(cmd)
-        if code == 0 and not ctx.cancelled:
-            os.replace(tmp, out)
-            if kind == "ffmpeg":
-                # ffmpeg drops embedded cover art in Ogg; copy it over ourselves
-                try:
-                    if pic := tags.get_picture(f):
-                        tags.set_picture(out, *pic)
-                except Exception:
-                    pass
+        ok, err = encode(ctx, kind, exe, f, out, bitrate)
+        if ok:
             ctx.log(f"  ok    {out.name}", "ok")
-            return True
-        tmp.unlink(missing_ok=True)
-        if not ctx.cancelled:
-            ctx.log(f"  FAIL  {f.name}" + (f" — {err.strip().splitlines()[-1]}" if err.strip() else ""), "error")
-        return False
+        elif not ctx.cancelled:
+            ctx.log(f"  FAIL  {f.name}" + (f" — {err}" if err else ""), "error")
+        return ok
 
     done, failed = [], []
     with ThreadPoolExecutor(max_workers=max(1, jobs)) as pool:
-        futures = {pool.submit(encode, f, o): (f, o) for f, o in todo}
+        futures = {pool.submit(one, f, o): (f, o) for f, o in todo}
         for i, fut in enumerate(as_completed(futures), 1):
             (done if fut.result() else failed).append(futures[fut])
             ctx.progress(i, len(todo), f"Converting {i} / {len(todo)}")
@@ -102,6 +84,31 @@ def convert(ctx, library, opus, bitrate=128, jobs=4, dry=False):
     ctx.log(f"Done in {round(time.time() - start)} s: {len(done)} converted, {skipped} skipped, "
             f"{len(failed)} failed.", "ok" if not failed else "warn")
     return [o for _, o in done]
+
+
+def encode(ctx, kind, exe, f, out, bitrate=128, part=".part"):
+    """Encode one file to Opus. Returns (ok, last error line)."""
+    # Write to a temp file first and only rename once the encoder succeeds, so a cancel or
+    # a bad file never leaves a broken .opus that would be skipped next time.
+    tmp = out.with_name(out.name + part)
+    if kind == "opusenc":
+        cmd = [exe, "--quiet", "--bitrate", str(bitrate), str(f), str(tmp)]
+    else:
+        cmd = [exe, "-nostdin", "-loglevel", "error", "-y", "-i", str(f), "-map", "0:a",
+               "-map_metadata", "0", "-c:a", "libopus", "-b:a", f"{bitrate}k", "-f", "ogg", str(tmp)]
+    code, _, err = ctx.popen(cmd)
+    if code == 0 and not ctx.cancelled:
+        os.replace(tmp, out)
+        if kind == "ffmpeg":
+            # ffmpeg drops embedded cover art in Ogg; copy it over ourselves
+            try:
+                if pic := tags.get_picture(f):
+                    tags.set_picture(out, *pic)
+            except Exception:
+                pass
+        return True, ""
+    tmp.unlink(missing_ok=True)
+    return False, err.strip().splitlines()[-1] if err.strip() else ""
 
 
 def find_orphans(ctx, library, opus):

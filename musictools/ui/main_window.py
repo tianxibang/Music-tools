@@ -130,9 +130,9 @@ class MainWindow(QMainWindow):
         self.jobs = JobManager()
         self.store = LibraryStore(self.bg)
 
-        from .pages import (convert, dashboard, enhance, health, organize, playlists, settings, sync, tags)
+        from .pages import (convert, dashboard, devices, enhance, health, organize, playlists, settings, sync, tags)
         self.pages = [dashboard.DashboardPage(self), convert.ConvertPage(self), sync.SyncPage(self),
-                      tags.TagsPage(self), health.HealthPage(self), enhance.EnhancePage(self),
+                      devices.DevicesPage(self), tags.TagsPage(self), health.HealthPage(self), enhance.EnhancePage(self),
                       playlists.PlaylistsPage(self), organize.OrganizePage(self), settings.SettingsPage(self)]
 
         root = QWidget()
@@ -191,7 +191,7 @@ class MainWindow(QMainWindow):
         self.nav.setIconSize(QSize(18, 18))
         self.nav.setCursor(Qt.PointingHandCursor)
         self.nav.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        sections = {3: "LIBRARY", 8: "APP"}
+        sections = {4: "LIBRARY", 9: "APP"}
         for i, p in enumerate(self.pages):
             if i in sections:
                 sep = QListWidgetItem(sections[i])
@@ -337,5 +337,8 @@ class MainWindow(QMainWindow):
                 e.ignore()
                 return
             self.jobs.cancel()
+        for p in self.pages:
+            if hasattr(p, "shutdown"):
+                p.shutdown()
         SETTINGS.save()
         e.accept()

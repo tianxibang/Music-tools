@@ -48,6 +48,9 @@ DEFAULTS = {
     "rename_template": "{artist} - {title}",
     "sort_template": "{albumartist}/{album}/{track:02} - {title}",
     "flatten": "",
+    "net_enabled": False,
+    "net_port": 47321,
+    "net_require_pairing": True,
 }
 
 

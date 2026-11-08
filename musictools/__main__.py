@@ -4,7 +4,30 @@ import os
 import sys
 
 
+def serve():
+    """Headless sync server, e.g. for an always-on PC: music-tools --serve [--pair]"""
+    import signal
+    import threading
+
+    from .core.netsync.security import format_code
+    from .core.netsync.server import SyncServer
+    from .core.util import SETTINGS
+
+    server = SyncServer(SETTINGS)
+    server.start()
+    if "--pair" in sys.argv:
+        session = server.start_pairing()
+        print(f"Pairing code (valid 5 minutes): {format_code(session.code)}", flush=True)
+    stop = threading.Event()
+    signal.signal(signal.SIGINT, lambda *_: stop.set())
+    signal.signal(signal.SIGTERM, lambda *_: stop.set())
+    stop.wait()
+    server.stop()
+
+
 def main():
+    if "--serve" in sys.argv:
+        return serve()
     if os.name == "nt":
         try:  # own taskbar icon instead of python.exe's
             import ctypes

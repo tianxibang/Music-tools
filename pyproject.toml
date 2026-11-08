@@ -5,12 +5,18 @@ description = "Convert, tag, check, organize and sync a FLAC library to an Andro
 requires-python = ">=3.11"
 dependencies = [
     "PySide6-Essentials>=6.7",
+    "cryptography>=43",
     "mutagen>=1.47",
     "numpy>=1.26",
+    "segno>=1.6",
+    "zeroconf>=0.136",
 ]
 
 [dependency-groups]
 build = ["pyinstaller>=6.10"]
+dev = [
+    "pytest>=9.2.0",
+]
 
 [project.gui-scripts]
 music-tools = "musictools.__main__:main"
