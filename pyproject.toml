@@ -1,0 +1,23 @@
+[project]
+name = "music-tools"
+version = "2.0"
+description = "Convert, tag, check, organize and sync a FLAC library to an Android phone"
+requires-python = ">=3.11"
+dependencies = [
+    "PySide6-Essentials>=6.7",
+    "mutagen>=1.47",
+    "numpy>=1.26",
+]
+
+[dependency-groups]
+build = ["pyinstaller>=6.10"]
+
+[project.gui-scripts]
+music-tools = "musictools.__main__:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["musictools*"]
