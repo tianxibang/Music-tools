@@ -38,7 +38,10 @@ def run(ctx, settings, steps):
     if "playlists" in steps:
         section("Playlists")
         playlists.export(ctx, lib, opus)
-    if "sync" in steps:
+    if "sync" in steps and settings["phone_mode"] == "app":
+        section("Sync to phone")
+        ctx.log("The phone app syncs by itself: it picks up the new Opus files on its next sync.", "ok")
+    elif "sync" in steps:
         section("Sync to phone")
         if not any(d.ready for d in sync.devices()):
             ctx.log("No phone connected — skipping sync.", "warn")

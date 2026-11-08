@@ -49,7 +49,7 @@ class DashboardPage(Page):
         self.last_sync = label("", "muted")
         refresh = button("Refresh", "ghost", "refresh")
         refresh.clicked.connect(self.refresh_phone)
-        goto = button("Open Sync", icon="phone")
+        goto = button("Open Phone", icon="phone")
         goto.clicked.connect(self._open_sync)
         self.phone.head.addWidget(refresh)
         self.phone.add(hbox(self.phone_dot, self.phone_name, None, spacing=8))
@@ -100,8 +100,8 @@ class DashboardPage(Page):
         self.refresh()
 
     def _open_sync(self):
-        from .sync import SyncPage
-        self.win.go(SyncPage)
+        from .phone import PhonePage
+        self.win.go(PhonePage)
 
     def _save_steps(self):
         SETTINGS["pipeline_steps"] = [k for k, cb in self.step_boxes.items() if cb.isChecked()]
@@ -132,6 +132,8 @@ class DashboardPage(Page):
 
     def refresh_phone(self):
         self.phone_name.setText("Checking…")
+        if SETTINGS["phone_mode"] == "app":
+            return self._show_app_phone()
 
         def work():
             if not sync.adb():
@@ -142,6 +144,32 @@ class DashboardPage(Page):
             return [(devs[0], sync.storage(devs[0].serial))]
 
         self.bg.run(work, self._show_phone)
+
+    def _show_app_phone(self):
+        from .devices import _ago
+        from .phone import PhonePage
+        # The dashboard is built before the Phone page; it updates us once the server is up
+        page = next((p for p in getattr(self.win, "pages", []) if isinstance(p, PhonePage)), None)
+        server = page.app.server if page else None
+        phones = sorted(server.registry.devices.values(), key=lambda d: -d.last_seen) if server else []
+        if server is None or not server.running:
+            state, name = "warn", "Phone sync is off"
+            info = "Turn it on in Phone → Sync with the phone app."
+        elif not phones:
+            state, name, info = "off", "No phone paired yet", "Pair the Music Tools app in Phone."
+        else:
+            d = phones[0]
+            state, name = ("ok" if d.last_seen else "off"), d.name
+            info = f"Last synced {_ago(d.last_seen)}" + ("" if len(phones) == 1 else f" · {len(phones)} phones paired")
+        self.last_sync.setText("Syncs by itself through the Music Tools app")
+        self._set_phone(state, name, info)
+
+    def _set_phone(self, state, name, info):
+        self.phone_dot.setProperty("state", state)
+        self.phone_dot.style().unpolish(self.phone_dot)
+        self.phone_dot.style().polish(self.phone_dot)
+        self.phone_name.setText(name)
+        self.phone_info.setText(info)
 
     def _show_phone(self, res):
         last = SETTINGS["last_sync"]
@@ -155,11 +183,7 @@ class DashboardPage(Page):
             dev, space = res[0]
             state, name = "ok", dev.label
             info = f"{space[0]} free of {space[1]}" if space else dev.serial
-        self.phone_dot.setProperty("state", state)
-        self.phone_dot.style().unpolish(self.phone_dot)
-        self.phone_dot.style().polish(self.phone_dot)
-        self.phone_name.setText(name)
-        self.phone_info.setText(info)
+        self._set_phone(state, name, info)
 
     def run_pipeline(self):
         steps = [k for k, cb in self.step_boxes.items() if cb.isChecked()]

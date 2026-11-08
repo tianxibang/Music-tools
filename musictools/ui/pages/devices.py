@@ -70,7 +70,7 @@ class PairDialog(QDialog):
         super().__init__(parent)
         self.server = server
         self.session = server.start_pairing()
-        self.setWindowTitle("Pair a device")
+        self.setWindowTitle("Pair a phone")
         lay = QVBoxLayout(self)
         lay.setContentsMargins(28, 22, 28, 20)
         lay.setSpacing(12)
@@ -126,16 +126,17 @@ class DevicesPage(Page):
                "added to the library, and the Opus versions go back to the phone."
     icon = "wifi"
 
-    def __init__(self, win):
-        super().__init__(win)
+    def __init__(self, win, embedded=False):
+        super().__init__(win, embedded)
         self.bridge = _Bridge()
         self.bridge.logged.connect(lambda msg, level: self.log.append(f"{time.strftime('%H:%M')}  {msg}", level))
         self.bridge.changed.connect(self._changed)
         self.server = SyncServer(SETTINGS, log=lambda msg, level="info": self.bridge.logged.emit(msg, level),
                                  on_change=self.bridge.changed.emit)
 
-        card = Card("Sync server", icon="wifi")
-        self.enabled = Toggle("Let devices sync with this PC", SETTINGS["net_enabled"])
+        card = Card("Sync with the phone app", "The app finds this PC on your Wi-Fi, or over a USB cable.",
+                    icon="wifi")
+        self.enabled = Toggle("Turn on sync with the phone app", SETTINGS["net_enabled"])
         self.enabled.toggled.connect(self._toggle_server)
         self.status = label("", "muted", wrap=True)
         card.add(hbox(self.enabled, None))
@@ -157,18 +158,19 @@ class DevicesPage(Page):
                            f"&& sudo firewall-cmd --reload", "hint", wrap=True))
         self.add(card)
 
-        devs = Card("Paired devices", icon="phone")
+        devs = Card("Paired phones", icon="phone")
         self.dev_table = _table(["Device", "Type", "Last seen", "Address"], [260, 90, 140])
         self.dev_table.setMinimumHeight(150)
         devs.add(self.dev_table)
-        self.pair_btn = button("Pair a device…", "primary", "plus")
+        self.pair_btn = button("Pair a phone…", "primary", "plus")
         self.pair_btn.clicked.connect(self.pair)
         remove = button("Remove", "danger", "trash", "Unpair: the device has to pair again to sync")
         remove.clicked.connect(self.remove)
         devs.add(hbox(self.pair_btn, remove, None))
         self.add(devs)
 
-        inbox = Card("Arrived from devices", icon="down")
+        inbox = Card("Sent from the phone", "New FLACs from the phone are filed into your library and "
+                     "converted; the phone then swaps its FLAC for the Opus.", icon="down")
         self.inbox_table = _table(["File", "Status", "In library as"], [280, 150])
         self.inbox_table.setMinimumHeight(150)
         inbox.add(self.inbox_table)
@@ -229,6 +231,7 @@ class DevicesPage(Page):
         """Keep the cable link up for phones plugged in by USB (they may come and go)."""
         if not (self.server.running and SETTINGS["net_usb"]):
             self.usb_status.setText("")
+            self.usb_status.hide()
             return
         if self._usb_checking:
             return
@@ -240,6 +243,7 @@ class DevicesPage(Page):
             phones = res if isinstance(res, list) else []
             self.usb_status.setText(f"Linked by USB: {', '.join(phones)}" if phones else
                                     "No phone plugged in by USB.")
+            self.usb_status.show()
         self.bg.run(lambda: usb.link_usb_phones(port), done)
 
     def _toggle_secure(self, on):
@@ -291,7 +295,7 @@ class DevicesPage(Page):
             mode = "pairing required" if s.require_pairing else "open to the home network"
             self.status.setText(f"Running on {addrs} as “{s.identity.name}” ({mode}).")
         else:
-            self.status.setText("Off. Turn it on to sync with the phone app.")
+            self.status.setText("Off: the phone app can't connect.")
 
         devices = sorted(s.registry.devices.values(), key=lambda d: d.name.lower())
         self.dev_table.setRowCount(len(devices))

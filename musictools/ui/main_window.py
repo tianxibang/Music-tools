@@ -75,7 +75,8 @@ class Page(QWidget):
     icon = "dashboard"
     scroll = True
 
-    def __init__(self, win):
+    def __init__(self, win, embedded=False):
+        """embedded: shown inside another page, so no header, margins or scroll area of its own."""
         super().__init__()
         self.win, self.jobs, self.store, self.bg = win, win.jobs, win.store, win.bg
         self.locked = []
@@ -84,10 +85,11 @@ class Page(QWidget):
         content = QWidget()
         content.setObjectName("content")
         self.body = QVBoxLayout(content)
-        self.body.setContentsMargins(34, 28, 34, 28)
+        self.body.setContentsMargins(*((0, 0, 0, 0) if embedded else (34, 28, 34, 28)))
         self.body.setSpacing(16)
-        self.body.addWidget(PageHeader(self.title, self.subtitle))
-        if self.scroll:
+        if not embedded:
+            self.body.addWidget(PageHeader(self.title, self.subtitle))
+        if self.scroll and not embedded:
             area = QScrollArea()
             area.setWidgetResizable(True)
             area.setWidget(content)
@@ -130,9 +132,9 @@ class MainWindow(QMainWindow):
         self.jobs = JobManager()
         self.store = LibraryStore(self.bg)
 
-        from .pages import (convert, dashboard, devices, enhance, health, organize, playlists, settings, sync, tags)
-        self.pages = [dashboard.DashboardPage(self), convert.ConvertPage(self), sync.SyncPage(self),
-                      devices.DevicesPage(self), tags.TagsPage(self), health.HealthPage(self), enhance.EnhancePage(self),
+        from .pages import (convert, dashboard, enhance, health, organize, phone, playlists, settings, tags)
+        self.pages = [dashboard.DashboardPage(self), convert.ConvertPage(self), phone.PhonePage(self),
+                      tags.TagsPage(self), health.HealthPage(self), enhance.EnhancePage(self),
                       playlists.PlaylistsPage(self), organize.OrganizePage(self), settings.SettingsPage(self)]
 
         root = QWidget()
@@ -191,7 +193,7 @@ class MainWindow(QMainWindow):
         self.nav.setIconSize(QSize(18, 18))
         self.nav.setCursor(Qt.PointingHandCursor)
         self.nav.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        sections = {4: "LIBRARY", 9: "APP"}
+        sections = {3: "LIBRARY", 8: "APP"}
         for i, p in enumerate(self.pages):
             if i in sections:
                 sep = QListWidgetItem(sections[i])

@@ -52,6 +52,7 @@ DEFAULTS = {
     "net_port": 47321,
     "net_require_pairing": True,
     "net_usb": True,
+    "phone_mode": "app",  # app | adb
 }
 
 

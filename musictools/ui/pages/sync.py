@@ -48,16 +48,17 @@ class SyncPage(Page):
     subtitle = "Mirror the Opus library onto an Android phone over USB or Wi-Fi."
     icon = "phone"
 
-    def __init__(self, win):
-        super().__init__(win)
-        dev_card = Card("Devices", icon="phone")
+    def __init__(self, win, embedded=False):
+        super().__init__(win, embedded)
+        dev_card = Card("Phone connection", "Needs USB debugging (cable) or Wireless debugging (Wi-Fi) "
+                        "turned on in the phone's Developer options.", icon="phone")
         self.dev_list = QListWidget()
         self.dev_list.setIconSize(QSize(18, 18))
         self.dev_list.setFixedHeight(132)
         self.dev_list.currentItemChanged.connect(self._pick)
         refresh = button("Refresh", icon="refresh")
         refresh.clicked.connect(self.refresh)
-        pair = button("Pair over Wi-Fi…", icon="wifi")
+        pair = button("Pair Wireless debugging…", icon="wifi")
         pair.clicked.connect(self.pair)
         connect = button("Connect…", icon="link")
         connect.clicked.connect(self.connect)
@@ -75,7 +76,7 @@ class SyncPage(Page):
         self.dev_status = label("", "muted", wrap=True)
         dev_card.add(self.dev_status)
 
-        opt = Card("Sync", icon="refresh")
+        opt = Card("Copy music to the phone", icon="refresh")
         form = FormGrid()
         self.local = label(SETTINGS["opus"])
         form.add("From", self.local)
