@@ -33,8 +33,8 @@ class SyncClient(
     val host: String,
     val port: Int,
     private val deviceId: String,
-    private val pinnedFingerprint: String?,
-    private val token: String?,
+    val pinnedFingerprint: String?,
+    val token: String?,
 ) {
     /** Fingerprint of the certificate seen on the last connection (used while pairing). */
     @Volatile var seenFingerprint: String? = null
@@ -189,5 +189,34 @@ class SyncClient(
 
     fun acknowledge(id: String) {
         execute(request(url("inbox/$id")).delete().build()).close()
+    }
+
+    // --- phone tools. A PC running an older Music Tools answers 404 to these.
+
+    fun library(): LibraryResponse = call(request(url("library")).get().build())
+
+    fun playlists(): List<Playlist> = call<PlaylistList>(request(url("playlists")).get().build()).playlists
+
+    fun savePlaylist(name: String, tracks: List<String>) {
+        val body = json.encodeToString(SavePlaylist.serializer(), SavePlaylist(tracks)).toRequestBody(jsonType)
+        execute(request(playlistUrl(name)).put(body).build()).close()
+    }
+
+    fun deletePlaylist(name: String) {
+        execute(request(playlistUrl(name)).delete().build()).close()
+    }
+
+    private fun playlistUrl(name: String) = url("playlists").newBuilder().addPathSegment(name).build()
+
+    fun pipeline(since: Int = 0): PipelineStatus =
+        call(request(url("pipeline", mapOf("since" to since.toString()))).get().build())
+
+    fun startPipeline(steps: List<String>) {
+        val body = json.encodeToString(StartPipeline.serializer(), StartPipeline(steps)).toRequestBody(jsonType)
+        execute(request(url("pipeline")).post(body).build()).close()
+    }
+
+    fun cancelPipeline() {
+        execute(request(url("pipeline/cancel")).post(ByteArray(0).toRequestBody(jsonType)).build()).close()
     }
 }

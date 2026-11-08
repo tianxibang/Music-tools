@@ -10,6 +10,11 @@ import threading
 from .util import NO_WINDOW
 
 
+# Held by whichever long job is running: one started in the desktop UI or from the phone app.
+# They touch the same folders, so only one may run at a time.
+EXCLUSIVE = threading.Lock()
+
+
 class Cancelled(Exception):
     pass
 

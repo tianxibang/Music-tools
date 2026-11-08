@@ -230,3 +230,96 @@ def test_inbox_items_are_private_to_each_device(env):
     assert e.value.status == 404
     with pytest.raises(SyncError):
         b.acknowledge(item["id"])
+
+
+# ------------------------------------------------------------------------ phone tools
+
+
+def library_with_tracks(tmp, n=3):
+    """A real little library: FLACs in the library and their Opus versions in the export."""
+    lib, opus = tmp / "lib", tmp / "opus"
+    for i in range(1, n + 1):
+        flac = lib / "Band" / "Album" / f"0{i} - Song {i}.flac"
+        flac.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["ffmpeg", "-nostdin", "-loglevel", "error", "-f", "lavfi", "-i",
+                        f"sine=frequency={200 + i * 50}:duration=1", "-metadata", f"title=Song {i}",
+                        "-metadata", "artist=Band", "-metadata", "album=Album", "-metadata", "genre=Rock",
+                        "-metadata", "date=1999", str(flac)], check=True)
+        out = opus / "Band" / "Album" / f"0{i} - Song {i}.opus"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["ffmpeg", "-nostdin", "-loglevel", "error", "-i", str(flac), "-c:a", "libopus",
+                        "-b:a", "64k", "-f", "ogg", str(out)], check=True)
+    return [f"Band/Album/0{i} - Song {i}.opus" for i in range(1, n + 1)]
+
+
+@needs_tools
+def test_library_lists_tracks_with_tags(env):
+    server, tmp = env
+    paths = library_with_tracks(tmp)
+    res = paired(server).request("GET", "library")
+    by_path = {t["path"]: t for t in res["tracks"]}
+    assert set(paths) <= set(by_path)
+    t = by_path[paths[0]]
+    assert t["tags"]["artist"] == "Band" and t["tags"]["album"] == "Album" and t["tags"]["genre"] == "Rock"
+    assert t["duration"] > 0.5
+    assert res["summary"]["flac_count"] == 3 and res["summary"]["pending"] == 0
+
+
+@needs_tools
+def test_playlists_round_trip(env):
+    server, tmp = env
+    paths = library_with_tracks(tmp)
+    c = paired(server)
+    c.request("PUT", "playlists/Road%20trip", {"tracks": [paths[2], paths[0]]})
+    # stored on the PC pointing at the FLACs, exported for the phone pointing at the Opus files
+    stored = (tmp / "lib" / "Playlists" / "Road trip.m3u8").read_text()
+    assert "03 - Song 3.flac" in stored and stored.index("Song 3") < stored.index("Song 1")
+    assert (tmp / "opus" / "Playlists" / "Road trip.m3u8").is_file()
+    assert c.request("GET", "playlists")["playlists"] == [
+        {"name": "Road trip", "tracks": [paths[2], paths[0]], "missing": 0}]
+    c.request("DELETE", "playlists/Road%20trip")
+    assert c.request("GET", "playlists")["playlists"] == []
+    assert not (tmp / "opus" / "Playlists" / "Road trip.m3u8").exists()
+
+
+@needs_tools
+def test_playlist_input_is_checked(env):
+    server, tmp = env
+    paths = library_with_tracks(tmp, 1)
+    c = paired(server)
+    for name in ("../evil", "a/b", "..", ""):
+        with pytest.raises(SyncError):
+            c.request("PUT", "playlists/" + quote(name, safe=""), {"tracks": paths})
+    for bad in (["../../etc/passwd"], ["Band/Album/nope.opus"], "not a list"):
+        with pytest.raises(SyncError) as e:
+            c.request("PUT", "playlists/Fine", {"tracks": bad})
+        assert e.value.status == 400
+    assert not (tmp / "evil.m3u8").exists() and not (tmp / "lib" / "evil.m3u8").exists()
+
+
+def test_pipeline_from_phone(env):
+    server, tmp = env
+    c = paired(server)
+    status = c.request("GET", "pipeline")
+    assert {s["key"] for s in status["steps"]} >= {"convert", "playlists"}
+    assert not status["running"]
+    c.request("POST", "pipeline", {"steps": ["playlists"]})
+    end = time.time() + 20
+    while time.time() < end and (status := c.request("GET", "pipeline"))["running"]:
+        time.sleep(0.2)
+    assert not status["running"] and not status["error"]
+    assert any("Pipeline finished" in line["text"] for line in status["lines"])
+    with pytest.raises(SyncError) as e:
+        c.request("POST", "pipeline", {"steps": ["rm -rf"]})
+    assert e.value.status == 400
+
+
+def test_pipeline_waits_for_desktop_jobs(env):
+    from musictools.core.jobs import EXCLUSIVE
+    server, _ = env
+    c = paired(server)
+    with EXCLUSIVE:  # a job running in the desktop app
+        with pytest.raises(SyncError) as e:
+            c.request("POST", "pipeline", {"steps": ["playlists"]})
+        assert e.value.status == 409
+        assert c.request("GET", "pipeline")["busy"]

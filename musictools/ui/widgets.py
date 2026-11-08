@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (QAbstractButton, QFileDialog, QFrame, QHBoxLayout
                                QPlainTextEdit, QProgressBar, QPushButton, QSizePolicy, QVBoxLayout, QWidget,
                                QGraphicsDropShadowEffect, QHeaderView, QTableView, QAbstractItemView)
 
-from ..core.jobs import Cancelled, Context
+from ..core.jobs import EXCLUSIVE, Cancelled, Context
 from ..core.util import MUSIC, human_duration
 from . import icons, theme
 
@@ -67,6 +67,10 @@ class JobManager(QObject):
         if self.busy:
             QMessageBox.information(None, "Busy", f"“{self.name}” is still running. Wait for it or cancel it first.")
             return False
+        if not EXCLUSIVE.acquire(blocking=False):
+            QMessageBox.information(None, "Busy", "A job started from the phone app is running on this PC. "
+                                    "Wait for it to finish first.")
+            return False
         ctx = JobContext()
         self.ctx, self.name = ctx, name
         if log:
@@ -95,6 +99,7 @@ class JobManager(QObject):
             self.ctx.cancel()
 
     def _on_finished(self, result, error, on_done):
+        EXCLUSIVE.release()
         self.ctx = None
         self.name = ""
         self.busyChanged.emit(False)

@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (QHBoxLayout, QLabel, QListWidget, QListWidgetItem
                                QScrollArea, QStackedWidget, QVBoxLayout, QWidget)
 
 from ..core import library, pipeline
+from ..core.jobs import EXCLUSIVE
 from ..core.tags import read_track
 from ..core.util import APP_NAME, APP_VERSION, AUDIO_EXTS, SETTINGS
 from . import icons, theme
@@ -281,7 +282,7 @@ class MainWindow(QMainWindow):
         self.page(DashboardPage).update_watch(self.watch_status)
 
     def _watch_tick(self):
-        if self.jobs.busy:
+        if self.jobs.busy or EXCLUSIVE.locked():  # a job from the desktop or the phone app is running
             return
         lib = SETTINGS.library
 

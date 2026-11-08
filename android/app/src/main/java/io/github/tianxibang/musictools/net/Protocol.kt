@@ -105,3 +105,78 @@ data class InboxList(val items: List<InboxItem>)
 
 @Serializable
 data class ApiError(val error: String)
+
+// --- phone tools (library, playlists, pipeline)
+
+@Serializable
+data class Track(
+    val path: String,
+    val size: Long = 0,
+    val duration: Double = 0.0,
+    val bitrate: Int = 0,
+    val art: Boolean = false,
+    val tags: Map<String, String> = emptyMap(),
+) {
+    val title get() = tags["title"] ?: path.substringAfterLast('/').substringBeforeLast('.')
+    val artist get() = tags["artist"] ?: ""
+    /** Grouping artist: album artist when set, so compilations stay together. */
+    val albumArtist get() = tags["albumartist"]?.takeIf { it.isNotBlank() } ?: tags["artist"]?.takeIf { it.isNotBlank() }
+        ?: "Unknown artist"
+    val album get() = tags["album"]?.takeIf { it.isNotBlank() } ?: "Unknown album"
+    val genre get() = tags["genre"]?.takeIf { it.isNotBlank() }
+    val year get() = tags["date"]?.take(4)?.toIntOrNull()
+    val trackNo get() = tags["tracknumber"]?.substringBefore('/')?.trim()?.toIntOrNull() ?: 0
+}
+
+@Serializable
+data class LibrarySummary(
+    @SerialName("flac_count") val flacCount: Int = 0,
+    @SerialName("flac_bytes") val flacBytes: Long = 0,
+    @SerialName("opus_count") val opusCount: Int = 0,
+    @SerialName("opus_bytes") val opusBytes: Long = 0,
+    val pending: Int = 0,
+)
+
+@Serializable
+data class LibraryResponse(val tracks: List<Track>, val summary: LibrarySummary = LibrarySummary())
+
+@Serializable
+data class Playlist(val name: String, val tracks: List<String>, val missing: Int = 0)
+
+@Serializable
+data class PlaylistList(val playlists: List<Playlist>)
+
+@Serializable
+data class SavePlaylist(val tracks: List<String>)
+
+@Serializable
+data class PipelineStep(val key: String, val label: String, val default: Boolean = false)
+
+@Serializable
+data class PipelineLine(val text: String, val level: String = "info")
+
+@Serializable
+data class PipelineProgress(val done: Int = 0, val total: Int = 0, val text: String = "")
+
+@Serializable
+data class PipelineStatus(
+    val steps: List<PipelineStep> = emptyList(),
+    val running: Boolean = false,
+    /** A job started on the PC itself is running. */
+    val busy: Boolean = false,
+    @SerialName("started_by") val startedBy: String = "",
+    val started: Double = 0.0,
+    val finished: Double = 0.0,
+    val error: String = "",
+    val lines: List<PipelineLine> = emptyList(),
+    val next: Int = 0,
+    val progress: PipelineProgress = PipelineProgress(),
+)
+
+@Serializable
+data class StartPipeline(val steps: List<String>)
+
+/** Same rules as the desktop's safe_filename, so a name typed on the phone is accepted by the PC. */
+fun cleanPlaylistName(name: String): String =
+    name.replace(Regex("[?*<>\"]"), "").replace(":", " -").replace(Regex("[|/\\\\]"), "-")
+        .replace(Regex("[\\x00-\\x1f]"), "").replace(Regex("\\s+"), " ").trim().trimEnd('.', ' ').take(180)

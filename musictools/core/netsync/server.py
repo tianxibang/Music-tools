@@ -10,6 +10,12 @@ Routes (JSON unless noted, everything under /api/v1):
   GET    /inbox                 this device's inbox items
   GET    /inbox/<id>            one item: state, opus_path when ready
   DELETE /inbox/<id>            acknowledge (the phone has the Opus)
+  GET    /library               every Opus track with tags, plus library totals
+  GET    /playlists             playlists with their tracks as Opus export paths
+  PUT    /playlists/<name>      save a playlist: {"tracks": [opus paths]}
+  DELETE /playlists/<name>      delete a playlist
+  GET    /pipeline?since=N      pipeline steps, whether it runs, log lines from N on
+  POST   /pipeline              start it: {"steps": [...]}; POST /pipeline/cancel stops it
 """
 
 import ipaddress
@@ -25,6 +31,7 @@ from ..util import APP_VERSION
 from . import PORT, PROTOCOL
 from .library import Inbox, manifest, safe_join
 from .security import Identity, PairingSession, Registry, server_proof
+from .tools import RemotePipeline, TrackIndex, delete_playlist, list_playlists, save_playlist, summary
 
 MAX_JSON = 64 * 1024
 DEVICE_ID = re.compile(r"^[0-9a-f]{16,64}$")
@@ -91,6 +98,8 @@ class SyncServer:
         self.ssl = self.identity.ssl_context()
         self.registry = Registry()
         self.inbox = None
+        self.tracks = TrackIndex()
+        self.pipeline = RemotePipeline(settings, self.log)
         self.pairing = None
         self.httpd = None
         self.discovery = None
@@ -204,7 +213,11 @@ class _Handler(BaseHTTPRequestHandler):
             device = self._auth()
             handler = {("POST", "unpair"): self._unpair, ("GET", "manifest"): self._manifest,
                        ("GET", "files"): self._file, ("PUT", "inbox"): self._upload,
-                       ("GET", "inbox"): self._inbox_get, ("DELETE", "inbox"): self._inbox_ack}.get((method, route))
+                       ("GET", "inbox"): self._inbox_get, ("DELETE", "inbox"): self._inbox_ack,
+                       ("GET", "library"): self._library, ("GET", "playlists"): self._playlists,
+                       ("PUT", "playlists"): self._playlist_save, ("DELETE", "playlists"): self._playlist_delete,
+                       ("GET", "pipeline"): self._pipeline_status, ("POST", "pipeline"): self._pipeline_start,
+                       }.get((method, route))
             if not handler:
                 raise ApiError(404, "Not found")
             handler(device, rest, query)
@@ -357,6 +370,67 @@ class _Handler(BaseHTTPRequestHandler):
             raise ApiError(404, "No such item")
         self.sync.on_change("inbox")
         self._json({"ok": True})
+
+    def _library(self, device, rest, query):
+        s = self.sync.settings
+        self._json({"tracks": self.sync.tracks.tracks(s.opus), "summary": summary(s.library, s.opus)})
+
+    def _playlists(self, device, rest, query):
+        if rest:
+            raise ApiError(404, "Not found")
+        s = self.sync.settings
+        self._json({"playlists": list_playlists(s.library, s.opus)})
+
+    def _playlist_save(self, device, rest, query):
+        data = self._body()
+        tracks = data.get("tracks")
+        if not rest or not isinstance(tracks, list) or len(tracks) > 20000:
+            raise ApiError(400, "Bad playlist")
+        s = self.sync.settings
+        try:
+            save_playlist(s.library, s.opus, rest, tracks)
+        except ValueError as e:
+            raise ApiError(400, str(e)) from None
+        self.sync.log(f"Playlist “{rest}” saved from {self._device_name(device)}.")
+        self.sync.on_change("playlists")
+        self._json({"ok": True})
+
+    def _playlist_delete(self, device, rest, query):
+        s = self.sync.settings
+        if not delete_playlist(s.library, s.opus, rest):
+            raise ApiError(404, "No such playlist")
+        self.sync.log(f"Playlist “{rest}” deleted from {self._device_name(device)}.", "warn")
+        self.sync.on_change("playlists")
+        self._json({"ok": True})
+
+    def _pipeline_status(self, device, rest, query):
+        try:
+            since = max(0, int(query.get("since", 0)))
+        except ValueError:
+            since = 0
+        self._json(self.sync.pipeline.status(since))
+
+    def _pipeline_start(self, device, rest, query):
+        if rest == "cancel":
+            self.sync.pipeline.cancel()
+            return self._json({"ok": True})
+        if rest:
+            raise ApiError(404, "Not found")
+        steps = self._body().get("steps")
+        if not isinstance(steps, list):
+            raise ApiError(400, "steps required")
+        try:
+            started = self.sync.pipeline.start([str(s) for s in steps], self._device_name(device))
+        except ValueError as e:
+            raise ApiError(400, str(e)) from None
+        if not started:
+            raise ApiError(409, "The PC is busy with another job. Try again when it's done.")
+        self.sync.on_change("pipeline")
+        self._json({"ok": True})
+
+    def _device_name(self, device):
+        dev = self.sync.registry.devices.get(device)
+        return dev.name if dev else "a phone"
 
 
 def _item(item):

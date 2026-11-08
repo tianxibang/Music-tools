@@ -2,22 +2,21 @@ package io.github.tianxibang.musictools.sync
 
 import android.content.Context
 import android.media.MediaScannerConnection
-import io.github.tianxibang.musictools.data.PairedPc
+import io.github.tianxibang.musictools.data.LibraryCache
+import io.github.tianxibang.musictools.data.LibrarySnapshot
 import io.github.tianxibang.musictools.data.Prefs
+import io.github.tianxibang.musictools.data.Selection
+import io.github.tianxibang.musictools.net.Connection
 import io.github.tianxibang.musictools.net.InboxItem
 import io.github.tianxibang.musictools.net.SyncClient
 import io.github.tianxibang.musictools.net.SyncException
-import io.github.tianxibang.musictools.net.discoverPcs
 import io.github.tianxibang.musictools.net.toHex
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
-import java.io.IOException
 import java.security.MessageDigest
 
 /** Files the mirror manages; anything else in the music folder (e.g. a FLAC you put there) is never deleted. */
@@ -94,7 +93,7 @@ class SyncEngine(private val context: Context, private val log: SyncLog, private
         val result = SyncResult()
         log.setFailed(loadPending().failed)
         log.status("Looking for ${pc.name}…")
-        val client = connect(pc)
+        val client = Connection.open(context)
         log.line("Connected to ${pc.name} " + if (client.host == USB_HOST) "by USB cable" else "at ${client.host}", Level.OK)
         try {
             sendNewFlacs(client, result)
@@ -109,36 +108,6 @@ class SyncEngine(private val context: Context, private val log: SyncLog, private
             }
         }
         return result
-    }
-
-    /**
-     * USB cable first (the PC forwards our localhost with `adb reverse`; refused instantly without a
-     * cable), then the last known addresses, then whatever the network announces for this PC's id.
-     */
-    private suspend fun connect(pc: PairedPc): SyncClient {
-        val s = prefs.settings
-        fun client(host: String, port: Int) = SyncClient(host, port, prefs.deviceId, pc.fingerprint, pc.token)
-        // Anything else on the phone could listen on localhost, but it can't show the PC's pinned certificate
-        runCatching { client(USB_HOST, pc.port).also { it.info() } }.getOrNull()?.let { return it }
-        for (host in pc.hosts) {
-            currentCoroutineContext().ensureActive()
-            val c = client(host, pc.port)
-            try {
-                c.info()
-                return c
-            } catch (e: SyncException) {
-                throw e  // reachable but refused (e.g. certificate changed): don't try elsewhere
-            } catch (_: IOException) {
-            }
-        }
-        val found = withTimeoutOrNull(6000) {
-            discoverPcs(context).first { list -> list.any { it.id == pc.id } }.first { it.id == pc.id }
-        } ?: throw IOException("Couldn't reach ${pc.name}. Is Music Tools running with sync turned on, " +
-            "and is the phone on the same network${if (s.wifiOnly) " (Wi-Fi)" else ""} or plugged in by USB?")
-        val c = client(found.host, found.port)
-        c.info()
-        prefs.rememberHost(found.host, found.port)
-        return c
     }
 
     // --- phone -> PC
@@ -226,6 +195,7 @@ class SyncEngine(private val context: Context, private val log: SyncLog, private
                     log.status("Downloading ${dest.name}")
                     val size = client.manifest().files.firstOrNull { it.path == item.opusPath }?.size ?: -1
                     client.download(item.opusPath, dest, size)
+                    prefs.addSentFromPhone(item.opusPath)
                     scan += dest.absolutePath
                     result.downloaded++
                     removeFlac(p, result)
@@ -258,10 +228,26 @@ class SyncEngine(private val context: Context, private val log: SyncLog, private
         val s = prefs.settings
         val musicDir = File(s.musicDir)
         log.status("Comparing music with the PC…")
-        val files = client.manifest().files
-        if (files.isEmpty()) {
+        val all = client.manifest().files
+        if (all.isEmpty()) {
             log.line("The PC's Opus folder is empty; not touching the phone's music.", Level.WARN)
             return
+        }
+        val snap = refreshLibrary(client)
+        val files = if (s.syncAll || snap == null) {
+            if (!s.syncAll) log.line("This PC can't tell which songs belong to your selection " +
+                "(update Music Tools on the PC); syncing everything.", Level.WARN)
+            all
+        } else {
+            val keep = Selection.wantedPaths(snap, s.selection, prefs.sentFromPhone)
+            if (keep.isEmpty()) {
+                log.line("Nothing is selected to sync. Pick some music in the Library tab.", Level.WARN)
+                return
+            }
+            // Other files (e.g. cover images) are tiny and kept; playlists only when selected
+            all.filter { f ->
+                f.path in keep || (!f.path.endsWith(".opus") && !f.path.startsWith("Playlists/"))
+            }
         }
         musicDir.mkdirs()
         val wanted = HashMap<String, Long>()
@@ -300,6 +286,15 @@ class SyncEngine(private val context: Context, private val log: SyncLog, private
         // Leftovers of interrupted downloads
         musicDir.walkTopDown().filter { it.isFile && it.name.startsWith(".") && it.name.endsWith(".part") }
             .forEach { it.delete() }
+    }
+
+    /** Fetch the track list and playlists for stats and selection; null if the PC is too old to send them. */
+    private fun refreshLibrary(client: SyncClient): LibrarySnapshot? = try {
+        LibraryCache.get(context).update(client.library(), client.playlists())
+        LibraryCache.get(context).state.value
+    } catch (e: SyncException) {
+        if (e.status != 404) throw e
+        null
     }
 
     companion object {

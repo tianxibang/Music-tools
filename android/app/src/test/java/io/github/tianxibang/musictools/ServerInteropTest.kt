@@ -48,6 +48,24 @@ class ServerInteropTest {
 
         client.acknowledge(item.id)
         assertEquals(0, client.inbox().size)
+
+        // Phone tools: track list, playlists and the pipeline
+        val lib = client.library()
+        val track = lib.tracks.first { it.path == item.opusPath }
+        assertEquals("Phone", track.artist)
+        assertEquals(1, lib.summary.flacCount)
+        client.savePlaylist("Interop mix", listOf(item.opusPath))
+        assertEquals(listOf(item.opusPath), client.playlists().first { it.name == "Interop mix" }.tracks)
+        client.deletePlaylist("Interop mix")
+        assertTrue(client.playlists().none { it.name == "Interop mix" })
+        client.startPipeline(listOf("playlists"))
+        var status = client.pipeline()
+        val until = System.currentTimeMillis() + 30_000
+        while (status.running && System.currentTimeMillis() < until) {
+            Thread.sleep(300)
+            status = client.pipeline()
+        }
+        assertTrue(status.lines.joinToString { it.text }, status.lines.any { "Pipeline finished" in it.text })
         client.unpair()
         assertTrue(runCatching { client.manifest() }.exceptionOrNull().let { it is SyncException && it.status == 401 })
     }

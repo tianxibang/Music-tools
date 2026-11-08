@@ -28,6 +28,9 @@ data class Settings(
     val keepExtraFiles: Boolean = false,
     val autoSync: Boolean = true,
     val wifiOnly: Boolean = true,
+    /** false: only [selection] goes on the phone (see [Selection]). */
+    val syncAll: Boolean = true,
+    val selection: Set<String> = emptySet(),
 )
 
 data class PrefsState(val pc: PairedPc?, val settings: Settings, val deviceId: String, val deviceName: String)
@@ -64,6 +67,8 @@ class Prefs private constructor(context: Context) {
             keepExtraFiles = sp.getBoolean("keep_extra", false),
             autoSync = sp.getBoolean("auto_sync", true),
             wifiOnly = sp.getBoolean("wifi_only", true),
+            syncAll = sp.getBoolean("sync_all", true),
+            selection = sp.getStringSet("selection", emptySet())!!.toSet(),
         )
         val name = sp.getString("device_name", null) ?: "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}"
             .replaceFirstChar { it.uppercase() }
@@ -94,13 +99,21 @@ class Prefs private constructor(context: Context) {
         val s = block(settings)
         sp.edit().putString("music_dir", s.musicDir).putString("source_dirs", s.sourceDirs.joinToString("\n"))
             .putBoolean("delete_flac", s.deleteFlacAfterSync).putBoolean("keep_extra", s.keepExtraFiles)
-            .putBoolean("auto_sync", s.autoSync).putBoolean("wifi_only", s.wifiOnly).commit()
+            .putBoolean("auto_sync", s.autoSync).putBoolean("wifi_only", s.wifiOnly)
+            .putBoolean("sync_all", s.syncAll).putStringSet("selection", s.selection).commit()
         _state.value = load()
     }
 
     fun setDeviceName(name: String) {
         sp.edit().putString("device_name", name.trim().take(80)).commit()
         _state.value = load()
+    }
+
+    /** Opus files that came back for FLACs sent from this phone: always kept, whatever is selected. */
+    val sentFromPhone: Set<String> get() = sp.getStringSet("sent_from_phone", emptySet())!!.toSet()
+
+    fun addSentFromPhone(path: String) {
+        sp.edit().putStringSet("sent_from_phone", sentFromPhone + path).apply()
     }
 
     /** Uploads that reached the PC but whose round trip isn't finished, keyed by FLAC path. */

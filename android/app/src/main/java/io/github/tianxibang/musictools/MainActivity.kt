@@ -15,6 +15,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.filled.Computer
+import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.Icon
@@ -39,8 +42,11 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import io.github.tianxibang.musictools.data.Prefs
+import io.github.tianxibang.musictools.ui.LibraryScreen
 import io.github.tianxibang.musictools.ui.MusicToolsTheme
 import io.github.tianxibang.musictools.ui.PairScreen
+import io.github.tianxibang.musictools.ui.PcScreen
+import io.github.tianxibang.musictools.ui.PlaylistsScreen
 import io.github.tianxibang.musictools.ui.PermissionScreen
 import io.github.tianxibang.musictools.ui.SettingsScreen
 import io.github.tianxibang.musictools.ui.SyncScreen
@@ -96,17 +102,27 @@ private fun Root() {
     }
 
     var tab by rememberSaveable { mutableIntStateOf(0) }
+    val tabs = listOf(
+        "Sync" to Icons.Default.Sync,
+        "Library" to Icons.Default.LibraryMusic,
+        "Playlists" to Icons.AutoMirrored.Filled.QueueMusic,
+        "PC" to Icons.Default.Computer,
+        "Settings" to Icons.Default.Settings,
+    )
     Scaffold(bottomBar = {
         NavigationBar {
-            NavigationBarItem(selected = tab == 0, onClick = { tab = 0 },
-                icon = { Icon(Icons.Default.Sync, null) }, label = { Text("Sync") })
-            NavigationBarItem(selected = tab == 1, onClick = { tab = 1 },
-                icon = { Icon(Icons.Default.Settings, null) }, label = { Text("Settings") })
+            tabs.forEachIndexed { i, (name, icon) ->
+                NavigationBarItem(selected = tab == i, onClick = { tab = i },
+                    icon = { Icon(icon, null) }, label = { Text(name, maxLines = 1) })
+            }
         }
     }) { padding ->
         Box(Modifier.padding(padding)) {
             when (tab) {
                 0 -> SyncScreen()
+                1 -> LibraryScreen()
+                2 -> PlaylistsScreen()
+                3 -> PcScreen()
                 else -> SettingsScreen()
             }
         }
