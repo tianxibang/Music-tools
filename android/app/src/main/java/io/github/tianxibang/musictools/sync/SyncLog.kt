@@ -22,6 +22,8 @@ data class SyncState(
     val lastSummary: String = "",
     val lastError: String = "",
     val lines: List<LogLine> = emptyList(),
+    /** FLACs that couldn't be synced, with the reason. */
+    val failed: List<Failed> = emptyList(),
 )
 
 /** Shared sync state: written by the worker, shown by the UI and the notification. */
@@ -29,7 +31,7 @@ class SyncLog private constructor(context: Context) {
     private val sp = context.getSharedPreferences("sync_log", Context.MODE_PRIVATE)
     private val _state = MutableStateFlow(
         SyncState(lastRun = sp.getLong("last_run", 0), lastSummary = sp.getString("last_summary", "")!!,
-            lastError = sp.getString("last_error", "")!!)
+            lastError = sp.getString("last_error", "")!!, failed = SyncEngine.storedFailures(context))
     )
     val state: StateFlow<SyncState> = _state.asStateFlow()
     var onChange: ((SyncState) -> Unit)? = null
@@ -48,6 +50,8 @@ class SyncLog private constructor(context: Context) {
 
     fun line(text: String, level: Level = Level.INFO) =
         set { it.copy(lines = (it.lines + LogLine(System.currentTimeMillis(), text, level)).takeLast(300)) }
+
+    fun setFailed(failed: List<Failed>) = set { it.copy(failed = failed) }
 
     fun finish(summary: String?, error: String?) {
         val now = System.currentTimeMillis()

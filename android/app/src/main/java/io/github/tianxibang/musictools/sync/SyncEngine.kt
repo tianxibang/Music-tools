@@ -26,8 +26,14 @@ private val MIRRORED = setOf("opus", "ogg", "m3u", "m3u8")
 @Serializable
 data class Pending(val path: String, val id: String, val sha256: String, val size: Long, val mtime: Long)
 
+/** A FLAC that couldn't be synced. Retried on the next syncs, and always by "Sync now". */
 @Serializable
-data class Failed(val path: String, val size: Long, val mtime: Long, val error: String)
+data class Failed(val path: String, val size: Long, val mtime: Long, val error: String, val attempts: Int = 1) {
+    val name get() = path.substringAfterLast('/')
+}
+
+/** Automatic syncs give up on a file after this many failures in a row; "Sync now" still tries. */
+const val AUTO_RETRIES = 3
 
 @Serializable
 data class PendingStore(val items: List<Pending> = emptyList(), val failed: List<Failed> = emptyList())
@@ -40,6 +46,8 @@ class SyncResult {
     var deleted = 0
     var failed = 0
     var waiting = 0
+    /** Files that failed before and still aren't synced (possibly not retried this time). */
+    var stillFailing = 0
 
     fun summary(): String {
         val parts = buildList {
@@ -50,12 +58,13 @@ class SyncResult {
             if (deleted > 0) add("$deleted removed")
             if (waiting > 0) add("$waiting still converting on the PC")
             if (failed > 0) add("$failed failed")
+            else if (stillFailing > 0) add("$stillFailing couldn't sync")
         }
         return if (parts.isEmpty()) "Everything is up to date" else parts.joinToString(" · ")
     }
 }
 
-class SyncEngine(private val context: Context, private val log: SyncLog) {
+class SyncEngine(private val context: Context, private val log: SyncLog, private val retryFailed: Boolean = false) {
     private val prefs = Prefs.get(context)
     private val json = Json { ignoreUnknownKeys = true }
     private val pendingFile = prefs.pendingFile(context)
@@ -68,11 +77,22 @@ class SyncEngine(private val context: Context, private val log: SyncLog) {
         val tmp = File(pendingFile.parentFile, pendingFile.name + ".tmp")
         tmp.writeText(json.encodeToString(PendingStore.serializer(), store))
         tmp.renameTo(pendingFile)
+        log.setFailed(store.failed)
     }
+
+    /** Record a failure, counting repeats for the same unchanged file. */
+    private fun PendingStore.withFailure(path: String, size: Long, mtime: Long, error: String): PendingStore {
+        val old = failed.firstOrNull { it.path == path && it.size == size && it.mtime == mtime }
+        return copy(failed = failed.filter { it.path != path } +
+            Failed(path, size, mtime, error, (old?.attempts ?: 0) + 1))
+    }
+
+    private fun PendingStore.withoutFailure(path: String) = copy(failed = failed.filter { it.path != path })
 
     suspend fun run(): SyncResult {
         val pc = prefs.pc ?: throw SyncException(0, "Not paired with a PC yet")
         val result = SyncResult()
+        log.setFailed(loadPending().failed)
         log.status("Looking for ${pc.name}…")
         val client = connect(pc)
         log.line("Connected to ${pc.name} " + if (client.host == USB_HOST) "by USB cable" else "at ${client.host}", Level.OK)
@@ -80,6 +100,7 @@ class SyncEngine(private val context: Context, private val log: SyncLog) {
             sendNewFlacs(client, result)
             finishPending(client, result)
             mirror(client, result)
+            result.stillFailing = loadPending().failed.size
         } finally {
             if (scan.isNotEmpty()) {
                 // Let music players see the changes without waiting for Android's own scan
@@ -134,7 +155,8 @@ class SyncEngine(private val context: Context, private val log: SyncLog) {
                 .filter { it.isFile && it.extension.equals("flac", true) && !it.name.startsWith(".") }
                 .forEach { f ->
                     val fail = failed[f.absolutePath]
-                    val retry = fail == null || fail.size != f.length() || fail.mtime != f.lastModified()
+                    val changed = fail == null || fail.size != f.length() || fail.mtime != f.lastModified()
+                    val retry = changed || retryFailed || fail!!.attempts < AUTO_RETRIES
                     if (f.absolutePath !in busy && retry) out += f
                 }
         }
@@ -157,12 +179,13 @@ class SyncEngine(private val context: Context, private val log: SyncLog) {
                 val sha = sha256(f)
                 val item = client.upload(f, sha) { sent -> log.progress(sent, size) }
                 store = store.copy(items = store.items + Pending(f.absolutePath, item.id, sha, size, mtime))
+                    .withoutFailure(f.absolutePath)
                 savePending(store)
                 result.sent++
                 log.line("Sent ${f.name}", Level.OK)
             } catch (e: SyncException) {
                 result.failed++
-                store = store.copy(failed = store.failed + Failed(f.absolutePath, size, mtime, e.message ?: "error"))
+                store = store.withFailure(f.absolutePath, size, mtime, e.message ?: "error")
                 savePending(store)
                 log.line("Couldn't send ${f.name}: ${e.message}", Level.ERROR)
             }
@@ -195,8 +218,7 @@ class SyncEngine(private val context: Context, private val log: SyncLog) {
                 if (item.state == "failed") {
                     result.failed++
                     log.line("The PC couldn't import ${item.name}: ${item.detail}", Level.ERROR)
-                    store = store.copy(items = store.items - p,
-                        failed = store.failed + Failed(p.path, p.size, p.mtime, item.detail))
+                    store = store.copy(items = store.items - p).withFailure(p.path, p.size, p.mtime, item.detail)
                 } else {
                     if (item.state == "duplicate") result.duplicates++
                     val dest = safeChild(musicDir, item.opusPath)
@@ -282,6 +304,11 @@ class SyncEngine(private val context: Context, private val log: SyncLog) {
 
     companion object {
         const val USB_HOST = "127.0.0.1"
+
+        fun storedFailures(context: Context): List<Failed> = runCatching {
+            Json { ignoreUnknownKeys = true }.decodeFromString<PendingStore>(
+                Prefs.get(context).pendingFile(context).readText()).failed
+        }.getOrDefault(emptyList())
 
         /** [root]/[rel], or null if the path tries to leave [root]. The PC is trusted, but not that much. */
         fun safeChild(root: File, rel: String): File? {

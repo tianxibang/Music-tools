@@ -169,6 +169,8 @@ def test_upload_rejects_bad_files(env):
     flac.write_bytes(b"x" * 100)
     with pytest.raises(SyncError, match="Checksum"):
         c.request("PUT", "inbox?name=song.flac&sha256=" + "0" * 64, body=flac.read_bytes())
+    # failed uploads don't linger in the inbox
+    assert c.inbox()["items"] == []
 
 
 needs_tools = pytest.mark.skipif(not shutil.which("ffmpeg"), reason="needs ffmpeg")

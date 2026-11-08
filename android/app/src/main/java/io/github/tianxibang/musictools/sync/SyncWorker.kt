@@ -19,6 +19,7 @@ import androidx.work.OutOfQuotaPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import io.github.tianxibang.musictools.R
 import io.github.tianxibang.musictools.data.Prefs
 import kotlinx.coroutines.sync.Mutex
@@ -55,7 +56,8 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
             }
         }
         return try {
-            val result = SyncEngine(applicationContext, log).run()
+            val manual = inputData.getBoolean(KEY_MANUAL, false)
+            val result = SyncEngine(applicationContext, log, retryFailed = manual).run()
             log.finish(result.summary(), null)
             Result.success()
         } catch (e: kotlinx.coroutines.CancellationException) {
@@ -89,6 +91,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
 
     companion object {
         private val running = Mutex()
+        private const val KEY_MANUAL = "manual"
         const val CHANNEL = "sync"
         private const val NOTIFICATION_ID = 1
         private const val ONE_TIME = "sync-now"
@@ -109,6 +112,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         fun syncNow(context: Context) {
             val req = OneTimeWorkRequestBuilder<SyncWorker>()
                 .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+                .setInputData(workDataOf(KEY_MANUAL to true))
                 .build()
             WorkManager.getInstance(context).enqueueUniqueWork(ONE_TIME, ExistingWorkPolicy.KEEP, req)
         }

@@ -125,11 +125,12 @@ class Inbox:
                 item = Item(**json.loads(f.read_text(encoding="utf-8")))
             except (OSError, ValueError, TypeError):
                 continue
-            if item.state in ("receiving", "converting", "imported"):
-                # interrupted: received files get processed again, half uploads are dropped
-                item.state = "received" if (f.parent / "upload").exists() or item.library_path else "failed"
-                if item.state == "failed":
-                    item.detail = "Upload was interrupted"
+            if item.state == "receiving" or (item.state == "failed" and not item.library_path
+                                              and not (f.parent / "upload").exists()):
+                shutil.rmtree(f.parent, ignore_errors=True)  # half an upload: the phone sends it again
+                continue
+            if item.state in ("converting", "imported"):
+                item.state = "received"  # interrupted while processing: do it again
             self.items[item.id] = item
         self._thread = threading.Thread(target=self._worker, daemon=True)
         self._thread.start()
@@ -190,10 +191,12 @@ class Inbox:
             if not hmac.compare_digest(h.hexdigest(), item.sha256):
                 raise ValueError("Checksum mismatch: the file got damaged on the way")
         except Exception as e:
-            target.unlink(missing_ok=True)
-            item.state, item.detail = "failed", str(e)
-            self._save(item)
-            raise ValueError(str(e)) from None
+            # A broken upload leaves nothing to show or import: forget it, the phone sends the file again
+            with self._lock:
+                self.items.pop(item.id, None)
+            shutil.rmtree(self.folder / item.id, ignore_errors=True)
+            self.log(f"Upload of {name} failed: {e}", "warn")
+            raise ValueError(f"Upload failed: {e}") from None
         item.state = "received"
         self._save(item)
         self.log(f"Received {name} from {device[:8]}")

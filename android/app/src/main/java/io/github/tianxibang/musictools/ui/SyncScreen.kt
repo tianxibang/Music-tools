@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.tianxibang.musictools.data.Prefs
+import io.github.tianxibang.musictools.sync.AUTO_RETRIES
 import io.github.tianxibang.musictools.sync.Level
 import io.github.tianxibang.musictools.sync.SyncLog
 import io.github.tianxibang.musictools.sync.SyncWorker
@@ -95,6 +96,21 @@ fun SyncScreen() {
                         Spacer(Modifier.width(8.dp))
                         Text("Sync now")
                     }
+                }
+            }
+        }
+        if (sync.failed.isNotEmpty()) {
+            item {
+                Section("Couldn't sync") {
+                    sync.failed.forEach { f ->
+                        Column {
+                            Text(f.name, style = MaterialTheme.typography.bodyMedium)
+                            Hint(f.error + if (f.attempts > 1) " (${f.attempts} tries)" else "", Palette.Err)
+                        }
+                    }
+                    Hint(if (sync.failed.any { it.attempts >= AUTO_RETRIES })
+                        "Tap “Sync now” to try again. Automatic syncs skip a file after $AUTO_RETRIES failed tries."
+                    else "These are tried again on the next sync, or tap “Sync now”.")
                 }
             }
         }
