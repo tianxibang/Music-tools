@@ -8,7 +8,7 @@ It replaces `flac2opus.fish`, `sync-music.fish` and `flattenplaylist.fish`, and 
 | Dashboard | Library stats, phone status, watch folder, **one-click pipeline** (convert → cover art → loudness → playlists → sync) |
 | Convert | FLAC → Opus in parallel, skips finished files, finds orphaned Opus files |
 | Sync to phone | adb mirror over **USB or Wi-Fi** (pair / connect / find on network), preview before changing anything |
-| Devices | Sync server for the Music Tools phone app (in progress): FLACs from the phone are added to the library and come back as Opus |
+| Devices | Sync server for the Music Tools phone app: FLACs from the phone are added to the library and come back as Opus |
 | Tag editor | Searchable table, bulk-edit tags and covers, rename files from tags, tags from file names. Edits carry over to the Opus copies |
 | Health check | Missing tags/art, duplicates (review and move extras to the trash), corrupt files, FLACs made from MP3s (spectrum check) |
 | Art & loudness | Fetch missing covers (MusicBrainz), copy covers into Opus, ReplayGain/R128 loudness tags |
@@ -20,6 +20,7 @@ It replaces `flac2opus.fish`, `sync-music.fish` and `flattenplaylist.fish`, and 
 Grab the latest build from [Releases](https://github.com/tianxibang/Music-tools/releases):
 
 - **Windows**: unzip `MusicTools-windows-x64.zip` and run `MusicTools.exe`.
+- **Android**: install `MusicTools-android.apk` (allow installing from your browser/files app when asked).
 - **Linux**: `tar xzf MusicTools-linux-x64.tar.gz`, then run `MusicTools/install-linux.sh` to add it to your
   app menu (or just start `MusicTools/MusicTools`).
 
@@ -63,6 +64,27 @@ sends the Opus version back.
   traffic is still encrypted, and connections from outside your local network are always refused.
 - Headless, e.g. on an always-on PC: `music-tools --serve` (add `--pair` to print a pairing code).
 - Linux firewall: `sudo firewall-cmd --add-port=47321/tcp --add-service=mdns --permanent && sudo firewall-cmd --reload`
+
+## Phone app (android/)
+
+Kotlin + Jetpack Compose. Pair it with the PC (Devices page → “Pair a device…”), then it:
+
+1. sends new FLACs from the phone's Download and Music folders to the PC, which files them into the library;
+2. downloads the Opus version the PC makes, and only then deletes the phone's FLAC (can be turned off);
+3. mirrors the PC's Opus export into `Music/opus_export` (the same folder the adb sync uses);
+4. repeats about every 30 minutes on Wi-Fi.
+
+It asks for “All files access”, since it manages a shared music folder and deletes FLACs that other apps saved.
+
+```bash
+cd android
+./gradlew assembleDebug        # app/build/outputs/apk/debug/app-debug.apk
+./gradlew testDebugUnitTest    # protocol tests; tests/android_interop.sh runs it against a real server
+```
+
+Needs JDK 17+ and the Android SDK (`ANDROID_HOME`, or `sdk.dir` in `android/local.properties`).
+Release APKs are signed with the key from `android/keystore.properties` (not committed) or, on GitHub,
+the `ANDROID_KEYSTORE_BASE64` and `ANDROID_KEYSTORE_PASSWORD` secrets.
 
 ## External programs
 
