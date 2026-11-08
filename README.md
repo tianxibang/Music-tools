@@ -9,10 +9,20 @@ It replaces `flac2opus.fish`, `sync-music.fish` and `flattenplaylist.fish`, and 
 | Convert | FLAC → Opus in parallel, skips finished files, finds orphaned Opus files |
 | Sync to phone | adb mirror over **USB or Wi-Fi** (pair / connect / find on network), preview before changing anything |
 | Tag editor | Searchable table, bulk-edit tags and covers, rename files from tags, tags from file names. Edits carry over to the Opus copies |
-| Health check | Missing tags/art, duplicates, corrupt files, FLACs made from MP3s (spectrum check) |
+| Health check | Missing tags/art, duplicates (review and move extras to the trash), corrupt files, FLACs made from MP3s (spectrum check) |
 | Art & loudness | Fetch missing covers (MusicBrainz), copy covers into Opus, ReplayGain/R128 loudness tags |
 | Playlists | .m3u8 playlists stored in `<library>/Playlists`, exported with Opus paths so they sync to the phone |
 | Organize | Folder info (size, play time, artists, genres, decades, quality), tag-based sorter, flatten |
+
+## Download
+
+Grab the latest build from [Releases](https://github.com/tianxibang/Music-tools/releases):
+
+- **Windows**: unzip `MusicTools-windows-x64.zip` and run `MusicTools.exe`.
+- **Linux**: `tar xzf MusicTools-linux-x64.tar.gz`, then run `MusicTools/install-linux.sh` to add it to your
+  app menu (or just start `MusicTools/MusicTools`).
+
+ffmpeg, opusenc and adb aren't included; see [External programs](#external-programs).
 
 ## Run from source
 
@@ -30,7 +40,14 @@ uv run --group build python build.py           # dist/MusicTools/  (add --onefil
 ```
 
 PyInstaller builds for the OS it runs on. For the Windows `.exe`, either run `build.py` on Windows,
-or push to GitHub and run the **build** workflow (Actions tab), which builds Windows and Linux together.
+or let GitHub do it: pushing a version tag builds Windows and Linux and publishes them as a release.
+
+```bash
+git tag v2.0 && git push music-tools v2.0
+```
+
+The **build** workflow can also be started by hand from the Actions tab; those builds show up as workflow
+artifacts instead of a release.
 
 ## External programs
 

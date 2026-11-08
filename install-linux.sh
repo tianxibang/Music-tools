@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 # Adds Music Tools to the app menu (GNOME, KDE, …).
-# Uses the built binary in dist/ if there is one, otherwise runs from source with the .venv.
+# Works from an extracted release (next to the MusicTools binary) or from the source folder,
+# where it uses the built binary in dist/ if there is one, otherwise runs from source with the .venv.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 
-if [[ -x "$here/dist/MusicTools/MusicTools" ]]; then
+if [[ -f "$here/MusicTools" && -x "$here/MusicTools" ]]; then
+    exec_line="$here/MusicTools"
+elif [[ -x "$here/dist/MusicTools/MusicTools" ]]; then
     exec_line="$here/dist/MusicTools/MusicTools"
-elif [[ -x "$here/dist/MusicTools" ]]; then
+elif [[ -f "$here/dist/MusicTools" && -x "$here/dist/MusicTools" ]]; then
     exec_line="$here/dist/MusicTools"
 elif [[ -x "$here/.venv/bin/python" ]]; then
     exec_line="$here/.venv/bin/python $here/launcher.py"
