@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QDialog, QHeaderView, QLabel, 
 
 from ...core.netsync import security, usb
 from ...core.netsync.server import SyncServer, local_addresses
-from ...core.util import SETTINGS, human_duration
+from ...core.util import SETTINGS
 from .. import theme
 from ..main_window import Page
 from ..widgets import Card, LogPanel, Toggle, button, hbox, label
@@ -60,7 +60,11 @@ def _ago(ts):
     if not ts:
         return "never"
     secs = time.time() - ts
-    return "just now" if secs < 60 else f"{human_duration(secs)} ago"
+    for unit, size in (("day", 86400), ("h", 3600), ("min", 60)):
+        if secs >= size:
+            n = int(secs // size)
+            return f"{n} {unit}{'s' if unit == 'day' and n > 1 else ''} ago"
+    return "just now"
 
 
 class PairDialog(QDialog):

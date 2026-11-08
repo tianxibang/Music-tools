@@ -9,6 +9,11 @@ Keep a lossless FLAC library on your PC and an Opus copy of it on your Android p
 The PC holds the master copy. A FLAC that lands on your phone goes to the PC, gets filed into the library and
 converted, and comes back as Opus; the phone's FLAC is removed once the Opus has arrived.
 
+<p align="center">
+  <img src="assets/screenshots/desktop-phone.png" alt="The desktop app's Phone page" width="68%">
+  <img src="assets/screenshots/phone-sync.png" alt="The phone app's Sync tab" width="22%">
+</p>
+
 ## Download
 
 Get the latest build from [Releases](https://github.com/tianxibang/Music-tools/releases):
@@ -30,6 +35,8 @@ That's it: the phone syncs about every 30 minutes on Wi-Fi, or whenever you tap 
 
 ## Desktop app
 
+<p align="center"><img src="assets/screenshots/desktop-tags.png" alt="The tag editor" width="80%"></p>
+
 | Page | What it does |
 |---|---|
 | Dashboard | Library stats, phone status, watch folder, **one-click pipeline** (convert → cover art → loudness → playlists → sync) |
@@ -42,6 +49,11 @@ That's it: the phone syncs about every 30 minutes on Wi-Fi, or whenever you tap 
 | Organize | Folder info (size, play time, artists, genres, decades, quality), tag-based sorter, flatten |
 
 ## Phone app
+
+<p align="center">
+  <img src="assets/screenshots/phone-library.png" alt="Library stats on the phone" width="32%">
+  <img src="assets/screenshots/phone-pc.png" alt="Running the PC's pipeline from the phone" width="32%">
+</p>
 
 | Tab | What it does |
 |---|---|
@@ -80,6 +92,8 @@ cable first. Automatic syncs need a network, so with only a cable, tap **Sync no
   stay inside the Opus export, uploads only reach the library through the PC's inbox (FLAC only, checksum
   verified, filed by the PC itself), and playlist edits stay in the Playlists folder.
 - Each phone has its own key, stored on the PC only as a hash. **Remove** on the Phone page cuts it off at once.
+
+Found a security problem? Please report it privately; see [SECURITY.md](SECURITY.md).
 
 ### Without the app
 
