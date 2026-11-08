@@ -14,6 +14,12 @@ val keystoreProps = Properties().apply {
 }
 fun signingValue(key: String, env: String): String? = keystoreProps.getProperty(key) ?: System.getenv(env)
 
+// Version from the release tag in CI (-PversionName=3.1), else the desktop's version. The version code
+// follows from it (3.1.2 -> 30102), so local and GitHub builds of the same version can replace each other.
+val appVersion = (project.findProperty("versionName") as String?) ?: "3.0"
+val appVersionCode = appVersion.substringBefore('-').split('.').map { it.toIntOrNull() ?: 0 }
+    .let { (it + listOf(0, 0, 0)).take(3) }.let { (a, b, c) -> a * 10000 + b * 100 + c }.coerceAtLeast(1)
+
 android {
     namespace = "io.github.tianxibang.musictools"
     compileSdk = 35
@@ -22,8 +28,8 @@ android {
         applicationId = "io.github.tianxibang.musictools"
         minSdk = 26
         targetSdk = 35
-        versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 1
-        versionName = (project.findProperty("versionName") as String?) ?: "3.0"
+        versionCode = appVersionCode
+        versionName = appVersion
     }
 
     signingConfigs {

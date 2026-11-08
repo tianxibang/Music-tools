@@ -373,7 +373,7 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _library(self, device, rest, query):
         s = self.sync.settings
-        self._json({"tracks": self.sync.tracks.tracks(s.opus), "summary": summary(s.library, s.opus)})
+        self._json({"tracks": self.sync.tracks.tracks(s.opus, s.library), "summary": summary(s.library, s.opus)})
 
     def _playlists(self, device, rest, query):
         if rest:

@@ -41,6 +41,9 @@ fun Section(title: String? = null, modifier: Modifier = Modifier, content: @Comp
     }
 }
 
+/** "1 song", "3 songs". */
+fun count(n: Int, word: String) = "%,d $word${if (n == 1) "" else "s"}".format(n)
+
 @Composable
 fun PageTitle(title: String, subtitle: String? = null) {
     Column(Modifier.statusBarsPadding().padding(top = 12.dp, bottom = 4.dp)) {

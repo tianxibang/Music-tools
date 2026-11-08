@@ -30,14 +30,20 @@ class TrackIndex:
             self.cache = {}
 
     @staticmethod
-    def _entry(path, rel, st):
+    def _entry(path, rel, st, flac):
         t = read_track(path)
         tags = {k: t.tag(k) for k in TRACK_FIELDS if t.tag(k)}
+        source = ""
+        if flac and flac.is_file():  # quality of the lossless original, e.g. "16-bit / 44.1 kHz"
+            f = read_track(flac)
+            if f.sample_rate:
+                source = f"{f.bits or '?'}-bit / {f.sample_rate / 1000:g} kHz"
         return {"path": rel, "size": st.st_size, "mtime": st.st_mtime, "duration": round(t.duration, 1),
-                "bitrate": t.bitrate, "art": t.has_art, "tags": tags}
+                "bitrate": t.bitrate, "art": t.has_art, "source": source, "tags": tags}
 
-    def tracks(self, opus_root):
+    def tracks(self, opus_root, library=None):
         root = Path(opus_root)
+        to_flac = {o: f for f, o in convert.plan(library, root)} if library and Path(library).is_dir() else {}
         with self._lock:
             files = []
             if root.is_dir():
@@ -47,10 +53,10 @@ class TrackIndex:
             fresh, todo = {}, []
             for p, rel, st in files:
                 old = self.cache.get(rel)
-                if old and old["size"] == st.st_size and old["mtime"] == st.st_mtime:
+                if old and old["size"] == st.st_size and old["mtime"] == st.st_mtime and "source" in old:
                     fresh[rel] = old
                 else:
-                    todo.append((p, rel, st))
+                    todo.append((p, rel, st, to_flac.get(p)))
             with ThreadPoolExecutor(max_workers=8) as pool:
                 for entry in pool.map(lambda a: self._entry(*a), todo):
                     fresh[entry["path"]] = entry
@@ -188,8 +194,10 @@ class RemotePipeline:
         self.error = ""
 
     def steps(self):
+        # With the phone app, the pipeline's "sync" step does nothing (the app syncs itself): don't offer it
+        app = self.settings.get("phone_mode", "app") == "app"
         return [{"key": k, "label": label, "default": k in self.settings["pipeline_steps"]}
-                for k, label in pipeline.STEPS]
+                for k, label in pipeline.STEPS if not (app and k == "sync")]
 
     def start(self, steps, device_name):
         valid = {k for k, _ in pipeline.STEPS}

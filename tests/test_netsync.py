@@ -262,6 +262,7 @@ def test_library_lists_tracks_with_tags(env):
     t = by_path[paths[0]]
     assert t["tags"]["artist"] == "Band" and t["tags"]["album"] == "Album" and t["tags"]["genre"] == "Rock"
     assert t["duration"] > 0.5
+    assert t["source"] == "16-bit / 44.1 kHz"
     assert res["summary"]["flac_count"] == 3 and res["summary"]["pending"] == 0
 
 
@@ -301,7 +302,8 @@ def test_pipeline_from_phone(env):
     server, tmp = env
     c = paired(server)
     status = c.request("GET", "pipeline")
-    assert {s["key"] for s in status["steps"]} >= {"convert", "playlists"}
+    keys = {s["key"] for s in status["steps"]}
+    assert keys >= {"convert", "playlists"} and "sync" not in keys  # the app syncs by itself
     assert not status["running"]
     c.request("POST", "pipeline", {"steps": ["playlists"]})
     end = time.time() + 20

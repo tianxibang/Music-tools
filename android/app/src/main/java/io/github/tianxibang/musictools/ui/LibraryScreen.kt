@@ -136,20 +136,18 @@ fun LibraryScreen() {
             val pool = onPhone.ifEmpty { snap.library.tracks }
             val label = if (onPhone.isEmpty()) " (PC)" else ""
             item { Bars("Top artists$label", pool.groupingBy { it.albumArtist }.eachCount()) }
-            item { Bars("Genres$label", pool.mapNotNull { it.genre }.groupingBy { it }.eachCount()) }
+            item { Bars("Genres$label", pool.flatMap { it.genres }.groupingBy { it }.eachCount()) }
             item {
                 Bars("Decades$label", pool.mapNotNull { it.year }.groupingBy { "${it / 10 * 10}s" }.eachCount(),
                     sortByKey = true)
             }
             item {
-                Bars("Quality$label", pool.groupingBy {
-                    when {
-                        it.bitrate >= 192 -> "192 kbps and up"
-                        it.bitrate >= 128 -> "128–191 kbps"
-                        it.bitrate > 0 -> "under 128 kbps"
-                        else -> "unknown"
-                    }
-                }.eachCount())
+                // The lossless originals' quality says more than the Opus bitrate, which is the same for all
+                if (pool.any { it.source.isNotEmpty() }) {
+                    Bars("Source quality$label", pool.groupingBy { it.source.ifEmpty { "unknown" } }.eachCount())
+                } else {
+                    Bars("Opus bitrate$label", pool.groupingBy { "≈${(it.bitrate + 8) / 16 * 16} kbps" }.eachCount())
+                }
             }
         }
 
@@ -169,7 +167,7 @@ fun LibraryScreen() {
                     val wanted = Selection.wantedPaths(snap, s.selection, prefsStore.sentFromPhone)
                     val size = wanted.sumOf { snap.byPath[it]?.size ?: 0 }
                     val free = (phone?.free ?: 0) + (phone?.bytes ?: 0)
-                    Text("${wanted.count { it.endsWith(".opus") }} songs selected · ${bytes(size)}",
+                    Text("${count(wanted.count { it.endsWith(".opus") }, "song")} selected · ${bytes(size)}",
                         color = if (free in 1 until size) Palette.Err else Palette.Text)
                     Hint(if (free in 1 until size) "That's more than fits on the phone." else
                         "Songs you don't pick are removed from the phone on the next sync (never from the PC). " +
@@ -188,7 +186,7 @@ fun LibraryScreen() {
                 items(pls, key = { "pl:" + it.name }) { pl ->
                     val key = Selection.playlist(pl.name)
                     CheckRow(if (key in s.selection) ToggleableState.On else ToggleableState.Off, pl.name,
-                        "${pl.tracks.size} songs") {
+                        count(pl.tracks.size, "song")) {
                         setSelection(if (key in s.selection) s.selection - key else s.selection + key)
                     }
                 }
@@ -207,8 +205,7 @@ fun LibraryScreen() {
                     else -> ToggleableState.Off
                 }
                 Column {
-                    CheckRow(state, a.name, "${a.albums.size} album${if (a.albums.size == 1) "" else "s"} · " +
-                        "${a.tracks} songs · ${bytes(a.size)}",
+                    CheckRow(state, a.name, "${count(a.albums.size, "album")} · ${count(a.tracks, "song")} · ${bytes(a.size)}",
                         trailing = {
                             Icon(if (a.name in expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null,
                                 Modifier.clickable { expanded = if (a.name in expanded) expanded - a.name else expanded + a.name }
@@ -225,7 +222,7 @@ fun LibraryScreen() {
                                 val on = artistKey in s.selection || key in s.selection
                                 Row(Modifier.padding(start = 28.dp)) {
                                     CheckRow(if (on) ToggleableState.On else ToggleableState.Off, al.name,
-                                        "${al.tracks.size} songs · ${bytes(al.size)}") {
+                                        "${count(al.tracks.size, "song")} · ${bytes(al.size)}") {
                                         val sel = if (artistKey in s.selection) {
                                             // Turn "the whole artist" into "every album but this one"
                                             s.selection - artistKey + albumKeys.filter { it != key }

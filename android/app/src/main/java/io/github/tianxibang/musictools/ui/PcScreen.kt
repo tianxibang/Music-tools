@@ -144,7 +144,8 @@ fun PcScreen() {
 
         if (lines.isNotEmpty()) {
             item { Text("Log", style = MaterialTheme.typography.titleSmall, color = Palette.Muted) }
-            items(lines.asReversed()) { line ->
+            // Oldest first, like the desktop log; the pipeline's spacer lines are left out
+            items(lines.filter { it.text.isNotBlank() }) { line ->
                 Text(
                     line.text,
                     style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),

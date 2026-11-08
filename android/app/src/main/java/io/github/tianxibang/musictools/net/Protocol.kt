@@ -115,6 +115,8 @@ data class Track(
     val duration: Double = 0.0,
     val bitrate: Int = 0,
     val art: Boolean = false,
+    /** Quality of the lossless original on the PC, e.g. "16-bit / 44.1 kHz" (empty on older PCs). */
+    val source: String = "",
     val tags: Map<String, String> = emptyMap(),
 ) {
     val title get() = tags["title"] ?: path.substringAfterLast('/').substringBeforeLast('.')
@@ -123,7 +125,8 @@ data class Track(
     val albumArtist get() = tags["albumartist"]?.takeIf { it.isNotBlank() } ?: tags["artist"]?.takeIf { it.isNotBlank() }
         ?: "Unknown artist"
     val album get() = tags["album"]?.takeIf { it.isNotBlank() } ?: "Unknown album"
-    val genre get() = tags["genre"]?.takeIf { it.isNotBlank() }
+    /** Genre tags often list several ("Pop, Rock, Metal"): each counts on its own. */
+    val genres get() = tags["genre"].orEmpty().split(',', ';', '/').map { it.trim() }.filter { it.isNotEmpty() }
     val year get() = tags["date"]?.take(4)?.toIntOrNull()
     val trackNo get() = tags["tracknumber"]?.substringBefore('/')?.trim()?.toIntOrNull() ?: 0
 }

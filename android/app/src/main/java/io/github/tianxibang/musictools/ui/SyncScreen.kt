@@ -73,7 +73,8 @@ fun SyncScreen() {
                         else LinearProgressIndicator(Modifier.fillMaxWidth())
                     }
                     sync.lastRun > 0 -> {
-                        val ago = DateUtils.getRelativeTimeSpanString(sync.lastRun).toString()
+                        val ago = if (System.currentTimeMillis() - sync.lastRun < 60_000) "just now"
+                        else DateUtils.getRelativeTimeSpanString(sync.lastRun).toString()
                         if (sync.lastError.isNotEmpty()) {
                             Hint("Last sync $ago failed", Palette.Err)
                             Text(sync.lastError, style = MaterialTheme.typography.bodyMedium)
