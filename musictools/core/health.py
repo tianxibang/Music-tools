@@ -21,12 +21,25 @@ class Issue:
     detail: str
 
 
+def _fold(s):
+    """Case-fold, and strip accents from Latin letters only (é → e). Other scripts are kept as they are:
+    the dakuten in が is part of the letter, not an accent."""
+    out = []
+    for ch in unicodedata.normalize("NFKC", s).casefold():
+        base = unicodedata.normalize("NFD", ch)
+        out.append(base[0] if len(base) > 1 and base[0].isascii() else ch)
+    return "".join(out)
+
+
 def _norm(s):
-    s = unicodedata.normalize("NFKD", s.lower())
-    s = re.sub(r"[\(\[].*?[\)\]]", " ", s)               # (Live…), [Remastered], (feat. …)
+    """Comparison key for an artist or title: ignores case, accents, punctuation and (Live…)-style extras.
+    Letters of every script count, so Japanese or Cyrillic titles stay distinct."""
+    raw = _fold(s)
+    s = re.sub(r"[\(\[（【].*?[\)\]）】]", " ", raw)     # (Live…), [Remastered], (feat. …), full-width too
     s = re.sub(r"\s(feat|ft|featuring)\.?\s.*$", " ", s)
     s = re.sub(r"\s-\s.*(remaster|version|edit|mix|live).*$", " ", s)
-    return re.sub(r"[^a-z0-9]+", "", s)
+    key = re.sub(r"[\W_]+", "", s)
+    return key or re.sub(r"\s+", " ", raw).strip()  # a title that's only symbols still identifies itself
 
 
 def quick_checks(tracks):

@@ -19,6 +19,12 @@ KIND_COLORS = {"Corrupt": theme.ERR, "Unreadable": theme.ERR, "Lossy source": th
                "Low quality": theme.WARN}
 
 
+def _trash(path):
+    """Move a file to the trash. PySide6 returns a bool here, not the (bool, path) its stubs promise."""
+    res = QFile.moveToTrash(str(path))
+    return bool(res[0] if isinstance(res, tuple) else res)
+
+
 def _quality(t):
     if t.path.suffix.lower() in LOSSLESS_EXTS:
         return f"{t.codec.upper()} {t.bits or '?'}-bit / {t.sample_rate / 1000:g} kHz"
@@ -264,8 +270,7 @@ class HealthPage(Page):
         library, opus = SETTINGS.library, SETTINGS.opus
         trashed, failed = set(), []
         for path in dlg.chosen():
-            ok, _ = QFile.moveToTrash(str(path))
-            if not ok:
+            if not _trash(path):
                 failed.append(path)
                 continue
             trashed.add(path)
@@ -276,7 +281,7 @@ class HealthPage(Page):
             except ValueError:
                 copy = None
             if copy and copy.exists():
-                if QFile.moveToTrash(str(copy))[0]:
+                if _trash(copy):
                     self.log.append(f"Moved to trash: {copy}")
                 else:
                     self.log.append(f"Couldn't move the Opus copy to trash: {copy}", "error")

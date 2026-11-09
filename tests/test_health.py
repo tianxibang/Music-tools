@@ -72,3 +72,21 @@ def test_drop_removes_deleted_files_from_playlists(tmp_path):
     assert playlists.drop(tmp_path, [gone]) == 1
     assert playlists.load(pl) == [keep.resolve()]
     assert playlists.drop(tmp_path, [gone]) == 0
+
+
+def test_non_latin_titles_are_different_songs():
+    # These all used to normalise to an empty title, so one artist's songs looked like one song
+    songs = [track(t, t, 200 + i * 10, artist="Vaundy") for i, t in enumerate(["東京フラッシュ", "怪獣の花唄", "踊り子"])]
+    assert health.duplicate_groups(songs) == []
+    assert health.duplicate_issues(songs) == []
+
+
+def test_non_latin_copies_still_match():
+    a, b = track("a", "怪獣の花唄", artist="Vaundy"), track("b", "怪獣の花唄", 201, artist="Vaundy")
+    assert notes([a, b]) == {"a": ("Best copy (kept)", False), "b": ("Copy", True)}
+
+
+def test_accents_fold_only_for_latin():
+    assert health._norm("Café") == health._norm("CAFE")
+    assert health._norm("が") != health._norm("か")
+    assert health._norm("Кино") != health._norm("Кина")
