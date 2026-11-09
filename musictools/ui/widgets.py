@@ -140,10 +140,8 @@ def _add(lay, w):
 
 
 def trash_file(path):
-    """Move a file to the trash. PySide6 returns a bool here, not the (bool, path) its stubs promise."""
-    from PySide6.QtCore import QFile
-    res = QFile.moveToTrash(str(path))
-    return bool(res[0] if isinstance(res, tuple) else res)
+    from ..core.util import trash
+    return trash(path)
 
 
 def label(text, name=None, wrap=False):

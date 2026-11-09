@@ -18,11 +18,10 @@ from pathlib import Path
 
 from .. import convert, tags
 from ..jobs import Context
-from ..organize import plan_moves
-from ..util import opus_path_for, safe_filename
+from ..util import AUDIO_EXTS, export_path_for, safe_filename, trash as util_trash
 from .security import state_dir
 
-ACCEPTED = {".flac"}
+ACCEPTED = AUDIO_EXTS
 MAX_UPLOAD = 2 * 1024 ** 3
 
 
@@ -35,13 +34,15 @@ def safe_join(root, rel):
     return path if path.is_relative_to(root) and path != root else None
 
 
-def manifest(opus_root):
-    """Every file in the Opus export (tracks, playlists, …) with size and mtime, like the adb sync mirrors."""
-    root = Path(opus_root)
+def manifest(root):
+    """Every file under root (the Opus export, or the library for computers that mirror it) with size and
+    mtime. Hidden files and folders and unfinished files are left out."""
+    root = Path(root)
     files = []
     if root.is_dir():
         for p in sorted(root.rglob("*")):
-            if p.is_file() and not p.name.endswith(".part"):
+            rel = p.relative_to(root)
+            if p.is_file() and not p.name.endswith(".part") and not any(x.startswith(".") for x in rel.parts):
                 st = p.stat()
                 files.append({"path": p.relative_to(root).as_posix(), "size": st.st_size, "mtime": int(st.st_mtime)})
     return files
@@ -57,43 +58,6 @@ def flac_md5(path):
         return ""
 
 
-class LibraryIndex:
-    """FLAC audio checksums for the library, cached by size and mtime so re-scans are cheap."""
-
-    def __init__(self, library, cache=None):
-        self.library = Path(library)
-        self.cache_path = Path(cache or state_dir() / "index.json")
-        self._lock = threading.Lock()
-        try:
-            self.cache = json.loads(self.cache_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            self.cache = {}
-
-    def find(self, md5):
-        """Library FLAC with this audio checksum, or None."""
-        if not md5:
-            return None
-        with self._lock:
-            fresh = {}
-            hit = None
-            for p in self.library.rglob("*.flac"):
-                st = p.stat()
-                key = p.as_posix()
-                old = self.cache.get(key)
-                if old and old[0] == st.st_size and old[1] == st.st_mtime:
-                    fresh[key] = old
-                else:
-                    fresh[key] = [st.st_size, st.st_mtime, flac_md5(p)]
-                if fresh[key][2] == md5:
-                    hit = p
-            self.cache = fresh
-            try:
-                self.cache_path.write_text(json.dumps(self.cache), encoding="utf-8")
-            except OSError:
-                pass
-            return hit
-
-
 @dataclass
 class Item:
     id: str
@@ -107,11 +71,24 @@ class Item:
     created: float = 0
 
 
+class _InboxContext(Context):
+    """Quiet while importing an upload; errors go to the server log."""
+    def __init__(self, log):
+        super().__init__()
+        self._log, self.error = log, ""
+
+    def log(self, msg, level="info"):
+        if level == "error":
+            self.error = msg.strip()
+            self._log(msg.strip(), "error")
+
+
 class Inbox:
     """Receives uploads into a staging folder, then imports and converts them one at a time."""
 
-    def __init__(self, settings, log=None, folder=None):
+    def __init__(self, settings, log=None, folder=None, trash=None):
         self.settings = settings
+        self.trash = trash or util_trash
         self.folder = Path(folder or state_dir() / "inbox")
         self.folder.mkdir(parents=True, exist_ok=True)
         self.log = log or (lambda msg, level="info": None)
@@ -119,7 +96,6 @@ class Inbox:
         self._lock = threading.Lock()
         self._wake = threading.Event()
         self._stop = False
-        self.index = LibraryIndex(settings.library)
         for f in self.folder.glob("*/item.json"):
             try:
                 item = Item(**json.loads(f.read_text(encoding="utf-8")))
@@ -156,7 +132,7 @@ class Inbox:
         """Store an upload. Raises ValueError with a message the client can show."""
         name = safe_filename(Path(name).name)
         if Path(name).suffix.lower() not in ACCEPTED:
-            raise ValueError("Only FLAC files can be sent to the library")
+            raise ValueError("Only music files can be sent to the library")
         if not 0 < size <= MAX_UPLOAD:
             raise ValueError("File is empty or too large")
         if len(sha256) != 64:
@@ -231,30 +207,44 @@ class Inbox:
                 self._save(todo)
 
     def _process(self, item):
+        """Same rules as importing from a drive: duplicates are recognised, better copies replace worse
+        ones (keeping the library's tags), lossy files go to the Lossy folder."""
+        from .. import importer, library as lib_scan
         library, opus = self.settings.library, self.settings.opus
         upload = self.folder / item.id / "upload"
         if item.library_path:  # imported before a restart; only the conversion is left
             dst = library / item.library_path
         else:
-            existing = self.index.find(flac_md5(upload))
-            if existing:
-                dst = existing
-                item.state, item.detail = "duplicate", "Already in the library"
-                self.log(f"{item.name} is already in the library as {existing.relative_to(library)}")
-            else:
-                staged = upload.with_name(item.name)
+            staged = upload.with_name(item.name)
+            if upload.exists():
                 upload.rename(staged)
-                track = tags.read_track(staged)
-                dst = plan_moves([track], library, self.settings["sort_template"])[0][1]
-                dst.parent.mkdir(parents=True, exist_ok=True)
-                shutil.move(str(staged), str(dst))
+            [c] = importer.plan(Context(), [tags.read_track(staged)], lib_scan.scan(library))
+            if c.action == "broken":
+                raise RuntimeError(f"Can't read the file: {c.reason}")
+            if c.action in ("same", "worse", "dupe"):
+                dst = c.target.path
+                item.state = "duplicate"
+                item.detail = "Already in the library" + (f" ({c.reason})" if c.action == "worse" else "")
+                self.log(f"{item.name} is already in the library as {dst.relative_to(library)}")
+            else:
+                c.tick = True
+                ctx = _InboxContext(self.log)
+                importer.apply(ctx, [c], self.settings, self.trash)
+                if c.dest is None:
+                    raise RuntimeError(ctx.error or "Import failed")
+                dst = c.dest
                 item.state = "imported"
+                item.detail = {"upgrade": f"Replaced a worse copy ({c.reason})", "lossy": "Added to the Lossy folder",
+                               "version": "Added as another version"}.get(c.action, "")
                 self.log(f"Added {dst.relative_to(library)} to the library", "ok")
+            staged.unlink(missing_ok=True)
             item.library_path = dst.relative_to(library).as_posix()
             self._save(item)
 
-        out = opus_path_for(dst, library, opus)
-        if not out.exists():
+        out = export_path_for(dst, library, opus)
+        if not out.exists() and dst.suffix.lower() != ".flac":
+            convert.copy_lossy(Context(), library, opus)
+        elif not out.exists():
             kind, exe = convert.encoder()
             if not kind:
                 raise RuntimeError("No Opus encoder found (install opus-tools or ffmpeg)")

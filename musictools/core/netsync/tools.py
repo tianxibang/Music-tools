@@ -93,6 +93,46 @@ def summary(library, opus):
             "opus_bytes": opus_bytes, "pending": pending}
 
 
+# ------------------------------------------------------------------------ tag edits from followers
+
+
+def library_file(library, opus, rel, root="library"):
+    """The library file for a path as a device knows it: in the library, or in the Opus export."""
+    library, opus = Path(library), Path(opus)
+    if root == "opus":
+        export = safe_join(opus, rel)
+        mapping = {o: f for f, o in convert.plan(library, opus) + convert.lossy_plan(library, opus)}
+        return mapping.get(export)
+    path = safe_join(library, rel)
+    return path if path and path.is_file() and path.suffix.lower() in AUDIO_EXTS else None
+
+
+def apply_tag_edits(library, opus, path, changes, force=False):
+    """Apply {field: (old, new)} to a library file and its export copy.
+
+    A field whose value on this PC is no longer `old` (it was changed here too) isn't touched unless forced:
+    it comes back in conflicts as {field: value here}.
+    """
+    from ..organize import save_tags
+    from ..tags import FIELDS
+    current = read_track(path).tags
+    write, applied, conflicts = {}, [], {}
+    for field, (old, new) in changes.items():
+        if field not in FIELDS:
+            continue
+        here = current.get(field, "")
+        if here == new:
+            applied.append(field)
+        elif force or here == old:
+            write[field] = new
+            applied.append(field)
+        else:
+            conflicts[field] = here
+    if write:
+        save_tags(path, write, library, opus)
+    return {"applied": applied, "conflicts": conflicts}
+
+
 # ------------------------------------------------------------------------ playlists
 
 

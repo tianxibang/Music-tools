@@ -37,3 +37,37 @@ class Advertiser:
             finally:
                 self.zc.close()
             self.zc = None
+
+
+def browse(seconds=3.0):
+    """Music Tools PCs announcing themselves on the network: [{name, id, host, port, fp, pairing}]."""
+    import time
+
+    from zeroconf import ServiceBrowser
+
+    found = {}
+
+    class Listener:
+        def add_service(self, zc, type_, name):
+            info = zc.get_service_info(type_, name, timeout=1500)
+            if not info or not info.parsed_addresses():
+                return
+            props = {k.decode(): (v or b"").decode() for k, v in info.properties.items()}
+            if props.get("v") != str(PROTOCOL):
+                return
+            found[name] = {"name": props.get("name", name), "id": props.get("id", ""), "host": info.parsed_addresses()[0],
+                           "port": info.port, "fp": props.get("fp", ""), "pairing": props.get("pairing", "required")}
+
+        def update_service(self, zc, type_, name):
+            self.add_service(zc, type_, name)
+
+        def remove_service(self, zc, type_, name):
+            found.pop(name, None)
+
+    zc = Zeroconf(ip_version=IPVersion.V4Only)
+    try:
+        ServiceBrowser(zc, SERVICE, Listener())
+        time.sleep(seconds)
+    finally:
+        zc.close()
+    return list(found.values())

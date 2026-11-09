@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 APP_NAME = "Music Tools"
-APP_VERSION = "3.3"
+APP_VERSION = "4.0"
 NO_WINDOW = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
 MUSIC = Path.home() / "Music"
 
@@ -54,6 +54,12 @@ DEFAULTS = {
     "net_usb": True,
     "phone_mode": "app",  # app | adb
     "import_source": "",
+    "role": "main",                  # main | follower (mirrors another PC's library)
+    "follow_get": "flac",            # flac | opus | both
+    "follow_auto": True,
+    "follow_interval": 30,           # minutes
+    "follow_send_auto": False,
+    "follow_new_music": str(MUSIC / "New music"),
     "import_check_fakes": True,
 }
 
@@ -140,6 +146,13 @@ def opus_path_for(flac, library=None, opus=None):
     opus = Path(opus or SETTINGS.opus)
     rel = Path(flac).relative_to(library).with_suffix(".opus")
     return opus.joinpath(*(sanitize_android(p) for p in rel.parts))
+
+
+def trash(path):
+    """Move a file to the system trash. (PySide6 returns a bool, not the (bool, path) its stubs promise.)"""
+    from PySide6.QtCore import QFile
+    res = QFile.moveToTrash(str(path))
+    return bool(res[0] if isinstance(res, tuple) else res)
 
 
 def export_path_for(src, library=None, opus=None):

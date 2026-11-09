@@ -46,6 +46,7 @@ class Candidate:
     target: object = None           # the library Track it was compared with (replaced, for an upgrade)
     tick: bool = False              # suggested for import
     warnings: list = field(default_factory=list)
+    dest: object = None             # where it ended up in the library, after apply()
 
 
 def is_lossless(t):
@@ -203,7 +204,7 @@ def apply(ctx, candidates, settings, trash):
     library, opus = settings.library, settings.opus
     template = settings["sort_template"]
     chosen = [c for c in candidates if c.tick and c.action in IMPORTABLE]
-    staging = library / ".import-tmp"
+    staging = library / f".import-tmp-{uuid.uuid4().hex[:8]}"
     staging.mkdir(parents=True, exist_ok=True)
     moved, counts, failed = {}, {}, 0
     try:
@@ -237,12 +238,14 @@ def apply(ctx, candidates, settings, trash):
                     shutil.move(str(tmp), str(dest))
                     if dest != old:
                         moved[old] = dest
+                    c.dest = dest
                     ctx.log(f"  upgraded  {dest.name}  ({c.reason})", "ok")
                 else:
                     root = library / LOSSY_FOLDER if lossy else library
                     dest = plan_moves([tags.read_track(tmp)], root, template)[0][1]
                     dest.parent.mkdir(parents=True, exist_ok=True)
                     shutil.move(str(tmp), str(dest))
+                    c.dest = dest
                     ctx.log(f"  added     {dest.relative_to(library)}", "ok")
                 counts[c.action] = counts.get(c.action, 0) + 1
             except Exception as e:

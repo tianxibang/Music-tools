@@ -250,6 +250,10 @@ class HealthPage(Page):
         if path:
             reveal(path)
 
+    def set_follower(self, on, main_name):
+        # Checking is fine anywhere; removing files is done on the main PC
+        self.dupes_btn.setVisible(not on)
+
     def remove_duplicates(self):
         if self.jobs.busy:
             QMessageBox.information(self, "Busy", f"Wait for “{self.jobs.name}” to finish first.")

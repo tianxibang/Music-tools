@@ -74,16 +74,18 @@ class PairDialog(QDialog):
         super().__init__(parent)
         self.server = server
         self.session = server.start_pairing()
-        self.setWindowTitle("Pair a phone")
+        self.setWindowTitle("Pair a device")
         lay = QVBoxLayout(self)
         lay.setContentsMargins(28, 22, 28, 20)
         lay.setSpacing(12)
-        lay.addWidget(label("Open Music Tools on your phone, tap “Pair with PC” and scan this code.", wrap=True))
+        lay.addWidget(label("<b>Phone:</b> open Music Tools, and scan this code or tap this PC and type the code "
+                            "below.<br><b>Another computer:</b> Sync → Follows another PC → Pair with the main PC, "
+                            "and type the code below.", wrap=True))
         qr = QLabel()
         qr.setPixmap(qr_pixmap(server.pairing_uri()))
         qr.setAlignment(Qt.AlignCenter)
         lay.addWidget(qr)
-        lay.addWidget(label("Or type this code on the phone:", "muted"))
+        lay.addWidget(label("Pairing code:", "muted"))
         code = QLabel(security.format_code(self.session.code))
         code.setTextInteractionFlags(Qt.TextSelectableByMouse)
         code.setAlignment(Qt.AlignCenter)
@@ -162,19 +164,19 @@ class DevicesPage(Page):
                            f"&& sudo firewall-cmd --reload", "hint", wrap=True))
         self.add(card)
 
-        devs = Card("Paired phones", icon="phone")
+        devs = Card("Paired devices", "Phones and computers that sync with this PC.", icon="phone")
         self.dev_table = _table(["Device", "Type", "Last seen", "Address"], [260, 90, 140])
         self.dev_table.setMinimumHeight(150)
         devs.add(self.dev_table)
-        self.pair_btn = button("Pair a phone…", "primary", "plus")
+        self.pair_btn = button("Pair a device…", "primary", "plus")
         self.pair_btn.clicked.connect(self.pair)
         remove = button("Remove", "danger", "trash", "Unpair: the device has to pair again to sync")
         remove.clicked.connect(self.remove)
         devs.add(hbox(self.pair_btn, remove, None))
         self.add(devs)
 
-        inbox = Card("Sent from the phone", "New FLACs from the phone are filed into your library and "
-                     "converted; the phone then swaps its FLAC for the Opus.", icon="down")
+        inbox = Card("Sent from your devices", "New music from your phone and other computers is filed into your "
+                     "library like an import and converted; the phone then swaps its FLAC for the Opus.", icon="down")
         self.inbox_table = _table(["File", "Status", "In library as"], [280, 150])
         self.inbox_table.setMinimumHeight(150)
         inbox.add(self.inbox_table)

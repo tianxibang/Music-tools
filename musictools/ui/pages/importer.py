@@ -120,6 +120,7 @@ class ImportPage(Page):
     subtitle = "Merge music from another drive or folder: new songs are added, better copies replace yours, " \
                "and what you already have is skipped."
     icon = "down"
+    follower_note = "Import on the main PC, or drop the files into this computer's “New music” folder and send them from the Sync page."
 
     def __init__(self, win):
         super().__init__(win)

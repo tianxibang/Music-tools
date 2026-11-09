@@ -67,11 +67,12 @@ class DashboardPage(Page):
         watch.add(self.watch_toggle)
         watch.add(self.watch_sync)
         watch.add(self.watch_label)
+        self.watch_card = watch
         self.add(hbox(self.phone, watch, spacing=14))
 
         # pipeline
-        card = Card("One-click pipeline", "Runs the selected steps in order. Only new or changed files are touched.",
-                    icon="sparkle")
+        card = self.pipeline_card = Card("One-click pipeline", "Runs the selected steps in order. Only new or "
+                                         "changed files are touched.", icon="sparkle")
         steps = QWidget()
         sg = QGridLayout(steps)
         sg.setContentsMargins(0, 4, 0, 4)
@@ -98,6 +99,13 @@ class DashboardPage(Page):
 
     def on_show(self):
         self.refresh()
+
+    def set_follower(self, on, main_name):
+        self.watch_card.setEnabled(not on)
+        for w in (self.pipeline_card, self.watch_card):
+            w.setToolTip(f"This computer follows {main_name}: this runs on the main PC." if on else "")
+        self.pipeline_card.setEnabled(not on)
+        self.refresh_phone()
 
     def _open_sync(self):
         from .phone import PhonePage
@@ -132,6 +140,13 @@ class DashboardPage(Page):
 
     def refresh_phone(self):
         self.phone_name.setText("Checking…")
+        if SETTINGS["role"] == "follower":
+            main = self.win.follower.main
+            last = (self.win.follower.state.get("last") or {}).get("time")
+            from .devices import _ago
+            self.last_sync.setText(f"Last sync {_ago(last)}" if last else "Not synced yet")
+            return self._set_phone("ok" if main else "warn", f"Follows {main['name']}" if main else
+                                   "Follows another PC (not paired)", "Your phone syncs with the main PC.")
         if SETTINGS["phone_mode"] == "app":
             return self._show_app_phone()
 

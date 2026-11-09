@@ -104,10 +104,10 @@ fun PairScreen() {
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).navigationBarsPadding(),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        PageTitle("Connect to your PC", "Open Music Tools on your PC, go to Phone and turn on sync with the phone app.")
+        PageTitle("Connect to your PC", "Open Music Tools on your PC, go to Sync and turn on sync with the phone app.")
 
         Section("Scan the code") {
-            Hint("Click “Pair a phone…” on the PC and scan the QR code it shows.")
+            Hint("Click “Pair a device…” on the PC and scan the QR code it shows.")
             Button(onClick = {
                 scanner.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE)
                     .setPrompt("Scan the code shown on your PC").setBeepEnabled(false).setOrientationLocked(false))
@@ -180,7 +180,7 @@ private fun ManualDialog(onDismiss: () -> Unit, onDone: (String, Int) -> Unit) {
         title = { Text("PC address") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Hint("Shown on the PC's Phone page, e.g. 192.168.1.20")
+                Hint("Shown on the PC's Sync page, e.g. 192.168.1.20")
                 OutlinedTextField(host, { host = it.trim() }, label = { Text("Address") }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri))
                 OutlinedTextField(port, { port = it.filter(Char::isDigit) }, label = { Text("Port") }, singleLine = true,
@@ -207,7 +207,7 @@ private fun CodeDialog(t: Target, busy: Boolean, error: String?, onDismiss: () -
                 if (t.open) {
                     Hint("This PC lets devices on your network sync without pairing.")
                 } else {
-                    Hint("Click “Pair a phone…” on the PC and type the code it shows.")
+                    Hint("Click “Pair a device…” on the PC and type the code it shows.")
                 }
                 OutlinedTextField(code, { code = it.uppercase().take(14) }, label = { Text("Pairing code") },
                     placeholder = { Text("XXXX-XXXX-XXXX") }, singleLine = true, enabled = !busy,

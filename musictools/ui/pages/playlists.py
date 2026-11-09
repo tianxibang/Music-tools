@@ -44,6 +44,7 @@ class PlaylistsPage(Page):
     subtitle = "Build playlists from the library. They're saved as .m3u8 next to your FLACs and exported " \
                "with Opus paths so they sync to the phone."
     icon = "playlist"
+    follower_note = "Edit playlists on the main PC (or from the phone app); they arrive here with the next sync."
     scroll = False
 
     def __init__(self, win):

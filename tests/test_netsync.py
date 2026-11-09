@@ -161,9 +161,9 @@ def test_only_local_network():
 def test_upload_rejects_bad_files(env):
     server, tmp = env
     c = paired(server)
-    bad = tmp / "song.mp3"
+    bad = tmp / "notes.txt"
     bad.write_bytes(b"x" * 100)
-    with pytest.raises(SyncError, match="Only FLAC"):
+    with pytest.raises(SyncError, match="Only music files"):
         c.upload(bad)
     flac = tmp / "song.flac"
     flac.write_bytes(b"x" * 100)

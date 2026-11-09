@@ -146,6 +146,7 @@ QTableView, QListWidget, QTreeView {{
 }}
 QTableView::item, QListWidget::item {{ padding: 4px 6px; border: none; }}
 QTreeView::item {{ padding: 3px 4px; border: none; }}
+#followerNote {{ background: {ACCENT_SOFT}; border: 1px solid {ACCENT_LO}; border-radius: 10px; padding: 10px 14px; color: {TEXT}; }}
 QTreeView::indicator {{ width: 15px; height: 15px; border-radius: 4px; border: 1px solid {BORDER_HI}; background: {INPUT}; }}
 QTreeView::indicator:hover {{ border-color: {ACCENT}; }}
 QTreeView::indicator:checked {{ background: {ACCENT}; border-color: {ACCENT}; image: url(:/check.svg); }}

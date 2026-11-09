@@ -110,7 +110,7 @@ def test_apply(setup):
     # The phone side: FLACs converted, the MP3 copied as is, no staging left over
     assert {p.relative_to(opus).as_posix() for p in opus.rglob("*") if p.is_file()} == {
         "Band-Song A.opus", "Band-Song B.opus", "Band-Song C.opus", "Band-Song E.opus", "Lossy/Band-Song D.mp3"}
-    assert not (lib / ".import-tmp").exists()
+    assert not any(p.name.startswith(".import-tmp") for p in lib.iterdir())
     # The drive is untouched
     assert {f: f.read_bytes() for f in drive.iterdir()} == before
 

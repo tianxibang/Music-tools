@@ -4,8 +4,8 @@ Routes (JSON unless noted, everything under /api/v1):
   GET    /info                  no auth: name, id, fingerprint, whether pairing is required
   POST   /pair                  pairing with a one-time code, returns a token
   POST   /unpair                a device removes itself
-  GET    /manifest              files of the Opus export: [{path, size, mtime}]
-  GET    /files/<path>          download one export file (binary, supports Range)
+  GET    /manifest?root=        files of the Opus export (or root=library: the FLAC library): [{path, size, mtime}]
+  GET    /files/<path>?root=    download one file (binary, supports Range)
   PUT    /inbox?name=&sha256=   upload a FLAC for the library (binary body)
   GET    /inbox                 this device's inbox items
   GET    /inbox/<id>            one item: state, opus_path when ready
@@ -16,6 +16,7 @@ Routes (JSON unless noted, everything under /api/v1):
   DELETE /playlists/<name>      delete a playlist
   GET    /pipeline?since=N      pipeline steps, whether it runs, log lines from N on
   POST   /pipeline              start it: {"steps": [...]}; POST /pipeline/cancel stops it
+  POST   /library/tags          tag edits from a follower: {path, root, changes: {field: {old, new}}, force}
 """
 
 import ipaddress
@@ -31,7 +32,8 @@ from ..util import APP_VERSION
 from . import PORT, PROTOCOL
 from .library import Inbox, manifest, safe_join
 from .security import Identity, PairingSession, Registry, server_proof
-from .tools import RemotePipeline, TrackIndex, delete_playlist, list_playlists, save_playlist, summary
+from .tools import (RemotePipeline, TrackIndex, apply_tag_edits, delete_playlist, library_file, list_playlists,
+                    save_playlist, summary)
 
 MAX_JSON = 64 * 1024
 DEVICE_ID = re.compile(r"^[0-9a-f]{16,64}$")
@@ -89,8 +91,9 @@ class _HTTPServer(ThreadingHTTPServer):
 
 
 class SyncServer:
-    def __init__(self, settings, log=None, on_change=None, port=None):
+    def __init__(self, settings, log=None, on_change=None, port=None, trash=None):
         self.settings = settings
+        self.trash = trash  # how replaced files are thrown away (default: the system trash)
         self.log = log or (lambda msg, level="info": print(msg, flush=True))
         self.on_change = on_change or (lambda what: None)
         self.port = port if port is not None else settings.get("net_port", PORT)
@@ -115,7 +118,7 @@ class SyncServer:
     def start(self):
         if self.httpd:
             return
-        self.inbox = Inbox(self.settings, self.log)
+        self.inbox = Inbox(self.settings, self.log, trash=self.trash)
         self.httpd = _HTTPServer(("0.0.0.0", self.port), _Handler, self)
         self.port = self.httpd.server_address[1]
         threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
@@ -214,7 +217,8 @@ class _Handler(BaseHTTPRequestHandler):
             handler = {("POST", "unpair"): self._unpair, ("GET", "manifest"): self._manifest,
                        ("GET", "files"): self._file, ("PUT", "inbox"): self._upload,
                        ("GET", "inbox"): self._inbox_get, ("DELETE", "inbox"): self._inbox_ack,
-                       ("GET", "library"): self._library, ("GET", "playlists"): self._playlists,
+                       ("GET", "library"): self._library, ("POST", "library"): self._library_tags,
+                       ("GET", "playlists"): self._playlists,
                        ("PUT", "playlists"): self._playlist_save, ("DELETE", "playlists"): self._playlist_delete,
                        ("GET", "pipeline"): self._pipeline_status, ("POST", "pipeline"): self._pipeline_start,
                        }.get((method, route))
@@ -307,11 +311,16 @@ class _Handler(BaseHTTPRequestHandler):
         self.sync.on_change("devices")
         self._json({"ok": True})
 
+    def _root(self, query):
+        """The folder a request is about: the Opus export (default) or the library itself."""
+        s = self.sync.settings
+        return s.library if query.get("root") == "library" else s.opus
+
     def _manifest(self, device, rest, query):
-        self._json({"files": manifest(self.sync.settings.opus), "generated": int(time.time())})
+        self._json({"files": manifest(self._root(query)), "generated": int(time.time())})
 
     def _file(self, device, rest, query):
-        root = self.sync.settings.opus
+        root = self._root(query)
         path = safe_join(root, rest)
         if not path or not path.is_file():
             raise ApiError(404, "No such file")
@@ -374,6 +383,27 @@ class _Handler(BaseHTTPRequestHandler):
     def _library(self, device, rest, query):
         s = self.sync.settings
         self._json({"tracks": self.sync.tracks.tracks(s.opus, s.library), "summary": summary(s.library, s.opus)})
+
+    def _library_tags(self, device, rest, query):
+        if rest != "tags":
+            raise ApiError(404, "Not found")
+        data = self._body()
+        changes = data.get("changes")
+        if not isinstance(changes, dict) or not changes:
+            raise ApiError(400, "changes required")
+        try:
+            changes = {str(k): (str(v["old"]), str(v["new"])) for k, v in changes.items()}
+        except (KeyError, TypeError):
+            raise ApiError(400, "Bad changes") from None
+        s = self.sync.settings
+        path = library_file(s.library, s.opus, str(data.get("path", "")), str(data.get("root", "library")))
+        if path is None:
+            raise ApiError(404, "No such song in the library")
+        res = apply_tag_edits(s.library, s.opus, path, changes, bool(data.get("force")))
+        if res["applied"]:
+            self.sync.log(f"Tags of {path.name} changed from {self._device_name(device)}.")
+            self.sync.on_change("library")
+        self._json(res)
 
     def _playlists(self, device, rest, query):
         if rest:

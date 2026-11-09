@@ -223,7 +223,7 @@ wheels = [
 
 [[package]]
 name = "music-tools"
-version = "3.3"
+version = "4.0"
 source = { editable = "." }
 dependencies = [
     { name = "cryptography" },

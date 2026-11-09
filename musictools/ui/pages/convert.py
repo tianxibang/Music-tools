@@ -10,6 +10,7 @@ class ConvertPage(Page):
     title = "Convert"
     subtitle = "Turn the FLAC library into a compact Opus copy for the phone. Already converted files are skipped."
     icon = "convert"
+    follower_note = "The main PC converts; the Opus files arrive with the next sync."
 
     def __init__(self, win):
         super().__init__(win)

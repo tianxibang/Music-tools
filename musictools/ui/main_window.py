@@ -75,6 +75,8 @@ class Page(QWidget):
     subtitle = ""
     icon = "dashboard"
     scroll = True
+    # Pages that change the library are read-only on a computer that follows another PC; this says why
+    follower_note = None
 
     def __init__(self, win, embedded=False):
         """embedded: shown inside another page, so no header, margins or scroll area of its own."""
@@ -120,6 +122,25 @@ class Page(QWidget):
     def on_show(self):
         pass
 
+    def set_follower(self, on, main_name):
+        """Called when this computer becomes (or stops being) a follower. Default: read-only with a note."""
+        if not self.follower_note:
+            return
+        if not hasattr(self, "_banner"):
+            from .widgets import label
+            self._banner = label("", "followerNote", wrap=True)
+            self.body.insertWidget(1, self._banner)
+        self._banner.setText(f"🔒  This computer follows <b>{main_name}</b>. {self.follower_note}")
+        self._banner.setVisible(on)
+        for i in range(self.body.count()):
+            w = self.body.itemAt(i).widget()
+            if w is not None and w is not self._banner and not isinstance(w, PageHeader):
+                w.setEnabled(not on)
+            elif (lay := self.body.itemAt(i).layout()) is not None:
+                for j in range(lay.count()):
+                    if (cw := lay.itemAt(j).widget()) is not None:
+                        cw.setEnabled(not on)
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -132,6 +153,8 @@ class MainWindow(QMainWindow):
         self.bg = Background()
         self.jobs = JobManager()
         self.store = LibraryStore(self.bg)
+        from ..core.netsync.follow import Follower
+        self.follower = Follower(SETTINGS)
 
         from .pages import (convert, dashboard, enhance, health, importer, organize, phone, playlists, settings,
                             tags)
@@ -163,8 +186,19 @@ class MainWindow(QMainWindow):
         self.watch_timer.setInterval(15000)
         self.watch_timer.timeout.connect(self._watch_tick)
         self.set_watch(SETTINGS["watch"])
+        self.apply_role()
 
         self.store.reload()
+
+    def apply_role(self):
+        """Main library, or a follower of another PC: tools that change the library move to the main PC."""
+        follower = SETTINGS["role"] == "follower"
+        main = self.follower.main
+        name = main["name"] if follower and main else "the main PC"
+        for p in self.pages:
+            p.set_follower(follower, name)
+        if follower and SETTINGS["watch"]:
+            self.set_watch(False)
 
     # --- sidebar
 

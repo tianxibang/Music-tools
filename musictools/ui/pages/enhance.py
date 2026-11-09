@@ -8,6 +8,7 @@ class EnhancePage(Page):
     title = "Art & loudness"
     subtitle = "Fill in missing cover art and even out volume between tracks."
     icon = "image"
+    follower_note = "Cover art and loudness tags are written on the main PC and arrive with the next sync."
 
     def __init__(self, win):
         super().__init__(win)

@@ -162,6 +162,7 @@ class TagsPage(Page):
         parse.clicked.connect(self.parse)
         reload_btn = button("", "ghost", "refresh", "Re-read the library")
         reload_btn.clicked.connect(self.store.reload)
+        self.rename_btn = rename
         self.lock(rename, parse)
         self.add(hbox(self.search, self.count, None, parse, rename, reload_btn))
 
@@ -309,7 +310,9 @@ class TagsPage(Page):
                 ctx.check()
                 try:
                     if changes:
+                        old = dict(t.tags)
                         organize.save_tags(t.path, changes, lib, opus)
+                        self._record(t.path, old, changes)
                     if cover:
                         mime = tags.image_mime(cover)
                         tags.set_picture(t.path, cover, mime)
@@ -332,6 +335,15 @@ class TagsPage(Page):
 
         self.jobs.start("Saving tags", job, log=self.log, on_done=done)
 
+    def _record(self, path, old, changes):
+        """On a follower, edits are also queued to be sent to the main PC (Sync page)."""
+        if SETTINGS["role"] == "follower":
+            self.win.follower.record_tag_edit(path, old, changes)
+
+    def set_follower(self, on, main_name):
+        # Tag edits are fine (they're sent to the main PC); renaming files would fight the mirror
+        self.rename_btn.setVisible(not on)
+
     def rename(self):
         dlg = RenameDialog(self, self.selected(), self.store.tracks)
         if dlg.exec() != QDialog.Accepted or not dlg.moves:
@@ -352,7 +364,9 @@ class TagsPage(Page):
             for i, (t, diff) in enumerate(changes, 1):
                 ctx.check()
                 try:
+                    old = dict(t.tags)
                     organize.save_tags(t.path, diff, lib, opus)
+                    self._record(t.path, old, diff)
                 except Exception as e:
                     ctx.log(f"  {t.path.name}: {e}", "error")
                 ctx.progress(i, len(changes))

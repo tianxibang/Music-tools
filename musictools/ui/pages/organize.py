@@ -16,6 +16,7 @@ class OrganizePage(Page):
     title = "Organize"
     subtitle = "Inspect any music folder, sort files into folders by their tags, or flatten a folder."
     icon = "folder"
+    follower_note = "Files are moved and renamed on the main PC; this computer follows with the next sync."
 
     def __init__(self, win):
         super().__init__(win)

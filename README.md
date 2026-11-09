@@ -2,7 +2,8 @@
 
 Keep a lossless FLAC library on your PC and an Opus copy of it on your Android phone, in sync both ways.
 
-- **Desktop app** (Windows, Linux): convert, tag, check and organize the FLAC library, and serve it to your phone.
+- **Desktop app** (Windows, Linux): convert, tag, check and organize the FLAC library, and serve it to your phone
+  and your other computers.
 - **Phone app** (Android): mirrors the library as Opus over Wi-Fi or a USB cable, sends FLACs you got on the go
   back to the PC, and lets you manage playlists, choose what to sync and run the PC's tools from the phone.
 
@@ -10,7 +11,7 @@ The PC holds the master copy. A FLAC that lands on your phone goes to the PC, ge
 converted, and comes back as Opus; the phone's FLAC is removed once the Opus has arrived.
 
 <p align="center">
-  <img src="assets/screenshots/desktop-phone.png" alt="The desktop app's Phone page" width="68%">
+  <img src="assets/screenshots/desktop-phone.png" alt="The desktop app's Sync page" width="68%">
   <img src="assets/screenshots/phone-sync.png" alt="The phone app's Sync tab" width="22%">
 </p>
 
@@ -28,8 +29,8 @@ The desktop app needs ffmpeg and opusenc; see [External programs](#external-prog
 ## Getting started
 
 1. Open the desktop app, set your FLAC library and Opus export folders in **Settings**.
-2. Go to **Phone**, choose **Music Tools phone app**, and turn on **Turn on sync with the phone app**.
-3. Click **Pair a phone…** and scan the QR code with the phone app (or tap the PC in its list and type the code).
+2. Go to **Sync**, choose **Music Tools phone app**, and turn on **Turn on sync with the phone app**.
+3. Click **Pair a device…** and scan the QR code with the phone app (or tap the PC in its list and type the code).
 
 That's it: the phone syncs about every 30 minutes on Wi-Fi, or whenever you tap **Sync now**.
 
@@ -42,7 +43,7 @@ That's it: the phone syncs about every 30 minutes on Wi-Fi, or whenever you tap 
 | Dashboard | Library stats, phone status, watch folder, **one-click pipeline** (convert → cover art → loudness → playlists → sync) |
 | Convert | FLAC → Opus in parallel, skips finished files, finds orphaned Opus files |
 | Import | Merge music from another drive or folder: adds new songs, replaces worse copies with better ones, skips what you have |
-| Phone | How the phone syncs: with the **phone app** (two-way, background, Wi-Fi or USB), or **without the app** (one-way copy over adb) |
+| Sync | Whether this PC is the **main library** or **follows another PC**, and how the phone syncs: with the **phone app** (two-way, background, Wi-Fi or USB), or **without the app** (one-way copy over adb) |
 | Tag editor | Searchable table, bulk-edit tags and covers, rename files from tags, tags from file names. Edits carry over to the Opus copies |
 | Health check | Missing tags or art, duplicates (review them and move extras to the trash), corrupt files, FLACs made from MP3s (spectrum check) |
 | Art & loudness | Fetch missing covers (MusicBrainz), copy covers into Opus, ReplayGain/R128 loudness tags |
@@ -64,6 +65,23 @@ Plug in a drive (or pick any folder), press **Scan**, and Music Tools compares e
 
 **Import suggested** does all of that in one click; **Review…** lets you tick and untick first. The drive is only
 read: files are copied and every copy is verified.
+
+### Other computers
+
+A laptop or second desktop can **follow** the main PC: on its **Sync** page, choose **Follows another PC** and pair
+with the main PC (**Pair a device…** there). It then
+
+- **mirrors** the main PC's FLAC library, its Opus versions, or both, every 30 minutes while Music Tools is open
+  (or with **Sync now**), and removes what the main PC removed. Only files a sync put there are ever removed, and
+  big removals ask first;
+- **sends changes back**: music dropped into its **New music** folder and tag edits made in its tag editor wait
+  in an outbox. Tick what to send, or let it send automatically. The main PC files new music like an import
+  (duplicates skipped, better copies upgrade worse ones) and passes everything on to all devices;
+- **handles conflicts**: if the main PC changed the same tag in the meantime, nothing is overwritten. You choose
+  **Keep mine** or **Use the main PC's**.
+
+On a follower, tools that change files (Convert, Import, Organize, Art & loudness, Playlists, removing duplicates,
+renaming) are used on the main PC instead, so there's always one version of the truth.
 
 ## Phone app
 
@@ -108,13 +126,13 @@ cable first. Automatic syncs need a network, so with only a cable, tap **Sync no
 - Connections from outside your local network are always refused. Paths from the phone are checked: downloads
   stay inside the Opus export, uploads only reach the library through the PC's inbox (FLAC only, checksum
   verified, filed by the PC itself), and playlist edits stay in the Playlists folder.
-- Each phone has its own key, stored on the PC only as a hash. **Remove** on the Phone page cuts it off at once.
+- Each device has its own key, stored on the PC only as a hash. **Remove** on the Sync page cuts it off at once.
 
 Found a security problem? Please report it privately; see [SECURITY.md](SECURITY.md).
 
 ### Without the app
 
-Choose **Without the app (adb)** on the Phone page to copy the Opus library to the phone with Android's developer
+Choose **Without the app (adb)** on the Sync page to copy the Opus library to the phone with Android's developer
 tools instead: one-way, over USB or Wireless debugging, started from the PC, with a preview before anything changes.
 
 ### Headless server
