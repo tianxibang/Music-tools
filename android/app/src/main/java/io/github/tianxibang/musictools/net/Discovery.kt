@@ -47,7 +47,8 @@ fun discoverPcs(context: Context): Flow<List<FoundPc>> = callbackFlow {
 
     fun resolved(info: NsdServiceInfo) {
         val attrs = info.attributes.mapValues { (_, v) -> v?.toString(Charsets.UTF_8).orEmpty() }
-        val host = if (Build.VERSION.SDK_INT >= 34) info.hostAddresses.firstOrNull()?.hostAddress
+        // A PC can announce several addresses; 169.254.x.x ones (adapters with no real network) don't reach it
+        val host = if (Build.VERSION.SDK_INT >= 34) info.hostAddresses.sortedBy { it.isLinkLocalAddress }.firstOrNull()?.hostAddress
         else @Suppress("DEPRECATION") info.host?.hostAddress
         if (host == null || attrs["v"] != Protocol.VERSION.toString()) return
         val pc = FoundPc(attrs["name"] ?: info.serviceName, attrs["id"].orEmpty(), host, info.port,

@@ -73,7 +73,23 @@ def local_addresses():
                     found.append(ip.ip)
     except Exception:
         pass
-    return list(dict.fromkeys(ip for ip in found if is_local(ip) and not ip.startswith("127.")))
+    found = list(dict.fromkeys(ip for ip in found if is_local(ip) and not ip.startswith("127.")))
+    # 169.254.x.x comes from adapters with no real network (virtual ones, unplugged cables): last, so nobody
+    # tries it first. sorted() is stable, so the outgoing address stays ahead of the others.
+    return sorted(found, key=lambda ip: ipaddress.ip_address(ip).is_link_local)
+
+
+def best_address(addrs):
+    """The address most likely to reach a PC that announced several: one on our own network, else any but
+    link-local (169.254.x.x)."""
+    ours = {".".join(ip.split(".")[:3]) for ip in local_addresses()}
+    def rank(ip):
+        try:
+            link_local = ipaddress.ip_address(ip).is_link_local
+        except ValueError:
+            link_local = True
+        return (".".join(ip.split(".")[:3]) not in ours, link_local)
+    return min(addrs, key=rank)
 
 
 class _HTTPServer(ThreadingHTTPServer):

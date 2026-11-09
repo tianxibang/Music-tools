@@ -15,12 +15,22 @@ import time
 import uuid
 from pathlib import Path
 
-from ..util import AUDIO_EXTS, remove_empty_dirs, trash as util_trash
+from ..util import AUDIO_EXTS, human_size as _size, remove_empty_dirs, trash as util_trash
 from .client import Client, SyncError
 from .security import Identity, state_dir
 
 ROOTS = {"flac": ["library"], "opus": ["opus"], "both": ["library", "opus"]}
 BIG_DELETE = 50  # more removals than this (and over 10 % of the files) need a confirmation
+_NAMES = {"library": "Library", "opus": "Opus export"}
+
+
+def _when(t):
+    return time.strftime("%Y-%m-%d %H:%M", time.localtime(t))
+_NAMES = {"library": "Library", "opus": "Opus export"}
+
+
+def _when(t):
+    return time.strftime("%Y-%m-%d %H:%M", time.localtime(t))
 
 
 class Follower:
@@ -115,14 +125,14 @@ class Follower:
         return {(e["root"], e["path"]) for e in self.state["edits"]}
 
     def plan(self, ctx, client):
-        """What a sync would change: {root: (downloads [(file info, dest)], removals [Path])}."""
+        """What a sync would change: {root: (downloads [(file info, dest, why)], removals [Path])}."""
         out = {}
         guarded = self.protected()
         for root in ROOTS[self.settings["follow_get"]]:
             files = client.manifest(root)
             local = Path(self._local(root))
             if not files:
-                ctx.log(f"The main PC's {'library' if root == 'library' else 'Opus export'} is empty: "
+                ctx.log(f"The main PC's {_NAMES[root].lower()} is empty: "
                         f"not touching this computer's copy.", "warn")
                 continue
             synced = self.state["synced"][root]
@@ -132,6 +142,7 @@ class Follower:
                 if (root, f["path"]) in guarded:
                     continue
                 dest = local / f["path"]
+                why = "new"
                 if dest.exists():
                     st = dest.stat()
                     if st.st_size == f["size"] and (int(st.st_mtime) == f["mtime"] or f["path"] not in synced):
@@ -139,10 +150,20 @@ class Follower:
                         # USB stick): no need to download it again
                         synced[f["path"]] = [f["size"], f["mtime"]]
                         continue
-                downloads.append((f, dest))
+                    if f["path"] not in synced:
+                        why = f"the copy here differs ({_size(st.st_size)} here, {_size(f['size'])} there)"
+                    elif st.st_size != f["size"]:
+                        why = f"changed on the main PC ({_size(st.st_size)} → {_size(f['size'])})"
+                    else:
+                        why = (f"changed on the main PC (modified {_when(f['mtime'])}, "
+                               f"the copy here {_when(st.st_mtime)})")
+                downloads.append((f, dest, why))
             removals = [local / rel for rel in synced if rel not in remote and (root, rel) not in guarded
                         and (local / rel).exists()]
             out[root] = (downloads, removals)
+            new = sum(why == "new" for _, _, why in downloads)
+            ctx.log(f"{_NAMES[root]}: {len(files)} files on the main PC, {len(downloads)} to download "
+                    f"({new} new, {len(downloads) - new} changed), {len(removals)} to remove.")
         return out
 
     def sync(self, ctx, send=None):
@@ -163,9 +184,10 @@ class Follower:
                                                f"computer. Remove them here too (they go to the trash)?"):
                     ctx.log(f"Kept {len(removals)} files the main PC no longer has.", "warn")
                     removals = []
-            for i, (f, dest) in enumerate(downloads, 1):
+            for i, (f, dest, why) in enumerate(downloads, 1):
                 ctx.check()
-                ctx.progress(i, len(downloads), f"Downloading {i} / {len(downloads)}")
+                ctx.progress(i, len(downloads), f"Downloading {i} / {len(downloads)}: {Path(f['path']).name}")
+                ctx.log(f"  ↓ {f['path']} ({why})")
                 try:
                     client.download(f["path"], dest, f["size"], f["mtime"], root=root)
                     synced[f["path"]] = [f["size"], f["mtime"]]

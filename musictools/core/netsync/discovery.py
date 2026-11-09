@@ -5,7 +5,7 @@ import socket
 from zeroconf import IPVersion, ServiceInfo, Zeroconf
 
 from . import PROTOCOL, SERVICE
-from .server import local_addresses
+from .server import best_address, local_addresses
 
 
 class Advertiser:
@@ -17,6 +17,8 @@ class Advertiser:
     def start(self):
         ident = self.server.identity
         addrs = local_addresses()
+        # Only announce 169.254.x.x when there's nothing else: phones and other PCs can't reach it
+        addrs = [a for a in addrs if not a.startswith("169.254.")] or addrs
         if not addrs:
             raise RuntimeError("no local network address")
         # The TXT record only carries a short fingerprint: enough to tell PCs apart,
@@ -55,7 +57,7 @@ def browse(seconds=3.0):
             props = {k.decode(): (v or b"").decode() for k, v in info.properties.items()}
             if props.get("v") != str(PROTOCOL):
                 return
-            found[name] = {"name": props.get("name", name), "id": props.get("id", ""), "host": info.parsed_addresses()[0],
+            found[name] = {"name": props.get("name", name), "id": props.get("id", ""), "host": best_address(info.parsed_addresses()),
                            "port": info.port, "fp": props.get("fp", ""), "pairing": props.get("pairing", "required")}
 
         def update_service(self, zc, type_, name):
