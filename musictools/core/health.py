@@ -48,6 +48,25 @@ def quick_checks(tracks):
     return issues + duplicate_issues(tracks)
 
 
+# Words that make a recording a different version of a song, not a copy of it. Remasters, deluxe
+# editions and featured artists don't count: those are the same recording.
+_VERSION_WORDS = re.compile(
+    r"\b(demo|live|acoustic|unplugged|remix|rmx|mix|instrumental|karaoke|a cappella|acapella|edit|"
+    r"version|cover|orchestral|piano|stripped|session|sped up|slowed|reprise|extended|rework|bootleg)\b")
+
+
+def _versions(title):
+    """The version words in a title: {"demo"} for "Turntail (Pre-Production Demo 2015)", empty for the original."""
+    t = unicodedata.normalize("NFKD", title.lower())
+    t = re.sub(r"\b(re-?master(ed)?|deluxe|bonus|explicit|clean|mono|stereo)\b", " ", t)
+    t = re.sub(r"\b(feat|ft|featuring)\b.*?(?=[\)\]]|$)", " ", t)
+    return frozenset(m.group(1).replace(" ", "") for m in _VERSION_WORDS.finditer(t))
+
+
+def _same_recording(a, b):
+    return _versions(a.tag("title")) == _versions(b.tag("title")) and abs(a.duration - b.duration) < 3
+
+
 def _song_groups(tracks):
     groups = {}
     for t in tracks:
@@ -61,11 +80,14 @@ def duplicate_issues(tracks):
     for group in _song_groups(tracks):
         for t in group:
             others = [o for o in group if o is not t]
-            same = [o for o in others if abs(o.duration - t.duration) < 3]
-            kind = "Duplicate" if same else "Possible duplicate"
-            ref = (same or others)[0]
-            issues.append(Issue(t.path, kind, f"Same song as “{ref.path.name}”"
-                                + ("" if same else " (different length — another version?)")))
+            same = [o for o in others if _same_recording(t, o)]
+            if same:
+                issues.append(Issue(t.path, "Duplicate", f"Same song as “{same[0].path.name}”"))
+                continue
+            ref = others[0]
+            diff = _versions(t.tag("title")) ^ _versions(ref.tag("title"))
+            why = f"another version ({', '.join(sorted(diff))})" if diff else "different length — another version?"
+            issues.append(Issue(t.path, "Possible duplicate", f"Same song as “{ref.path.name}”, but {why}"))
     return issues
 
 
@@ -77,27 +99,30 @@ def quality_key(t):
 
 
 def duplicate_sets(tracks):
-    """Copies of the same song with the same length (within 3 s), best copy first.
+    """(exact, possible): lists of track groups, best copy first.
 
-    Songs whose copies differ in length (live take, radio edit…) are split into separate sets,
-    so only true duplicates are offered for deletion.
+    exact: copies of the same recording (same version, length within 3 s), safe to thin out.
+    possible: the same song in other versions (demo, live, …) or lengths; only for review, never pre-selected.
     """
-    sets = []
+    def best_first(group):
+        return sorted(group, key=quality_key, reverse=True)
+
+    exact, possible = [], []
     for group in _song_groups(tracks):
-        group.sort(key=lambda t: t.duration)
-        cluster = [group[0]]
-        for t in group[1:]:
-            if t.duration - cluster[-1].duration < 3:
-                cluster.append(t)
+        clusters = []
+        for t in group:
+            home = next((c for c in clusters if _same_recording(c[0], t)), None)
+            if home:
+                home.append(t)
             else:
-                if len(cluster) > 1:
-                    sets.append(cluster)
-                cluster = [t]
-        if len(cluster) > 1:
-            sets.append(cluster)
-    for s in sets:
-        s.sort(key=quality_key, reverse=True)
-    return sorted(sets, key=lambda s: (s[0].artist.lower(), s[0].title.lower()))
+                clusters.append([t])
+        exact += [best_first(c) for c in clusters if len(c) > 1]
+        if len(clusters) > 1:
+            possible.append(best_first(group))
+
+    def order(sets):
+        return sorted(sets, key=lambda s: (s[0].artist.lower(), s[0].title.lower()))
+    return order(exact), order(possible)
 
 
 def decode_check(ctx, path, ffmpeg):

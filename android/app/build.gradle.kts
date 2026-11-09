@@ -14,9 +14,11 @@ val keystoreProps = Properties().apply {
 }
 fun signingValue(key: String, env: String): String? = keystoreProps.getProperty(key) ?: System.getenv(env)
 
-// Version from the release tag in CI (-PversionName=3.1), else the desktop's version. The version code
+// Version from the release tag in CI (-PversionName=3.1), else the desktop's APP_VERSION. The version code
 // follows from it (3.1.2 -> 30102), so local and GitHub builds of the same version can replace each other.
-val appVersion = (project.findProperty("versionName") as String?) ?: "3.0"
+val desktopVersion = rootProject.file("../musictools/core/util.py").readText()
+    .let { Regex("""APP_VERSION = "([^"]+)"""").find(it)?.groupValues?.get(1) } ?: "0.0"
+val appVersion = (project.findProperty("versionName") as String?) ?: desktopVersion
 val appVersionCode = appVersion.substringBefore('-').split('.').map { it.toIntOrNull() ?: 0 }
     .let { (it + listOf(0, 0, 0)).take(3) }.let { (a, b, c) -> a * 10000 + b * 100 + c }.coerceAtLeast(1)
 

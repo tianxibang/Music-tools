@@ -60,6 +60,19 @@ def remap(library, mapping):
     return changed
 
 
+def drop(library, paths):
+    """Take deleted files out of every playlist. Returns how many playlists changed."""
+    gone = {Path(p).resolve() for p in paths}
+    changed = 0
+    for pl in list_playlists(library):
+        entries = load(pl)
+        kept = [e for e in entries if e not in gone]
+        if len(kept) != len(entries):
+            save(pl, kept)
+            changed += 1
+    return changed
+
+
 def export(ctx, library, opus):
     """Write Opus versions of every playlist into <opus>/Playlists."""
     library, opus = Path(library), Path(opus)

@@ -7,8 +7,9 @@ from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QHeaderView, QMessageBox,
                                QTableWidget, QTableWidgetItem, QTreeWidget, QTreeWidgetItem, QVBoxLayout)
 
-from ...core import health
-from ...core.util import LOSSLESS_EXTS, SETTINGS, human_size, reveal
+from ...core import health, playlists
+from ...core.jobs import Context
+from ...core.util import LOSSLESS_EXTS, SETTINGS, human_duration, human_size, opus_path_for, reveal
 from .. import theme
 from ..main_window import Page
 from ..widgets import Card, LogPanel, Toggle, button, hbox, label
@@ -25,49 +26,58 @@ def _quality(t):
 
 
 class DuplicatesDialog(QDialog):
-    """Lists each set of duplicates with every copy but the best one ticked for deletion."""
+    """Exact duplicates with every copy but the best ticked, then possible duplicates (other versions or
+    lengths) with nothing ticked, for review."""
 
-    def __init__(self, parent, sets):
+    def __init__(self, parent, exact, possible):
         super().__init__(parent)
         self.setWindowTitle("Remove duplicates")
-        self.resize(1000, 620)
+        self.resize(1080, 660)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(20, 18, 20, 16)
         lay.setSpacing(10)
-        lay.addWidget(label("Ticked files go to the trash, so you can still restore them. The best copy of each "
-                            "song (lossless, highest resolution, cover art, most tags) is kept by default; tick "
-                            "or untick to change that. Songs that only differ in length aren't listed here.",
+        lay.addWidget(label("Ticked files go to the trash together with their Opus copies, so you can still restore "
+                            "them, and they're taken out of your playlists. For exact duplicates, the best copy "
+                            "(lossless, highest resolution, cover art, most tags) is kept. Possible duplicates are "
+                            "often a demo, live or other version: nothing is ticked there, so decide for yourself.",
                             "hint", wrap=True))
 
         self.tree = QTreeWidget()
-        self.tree.setHeaderLabels(["File", "Quality", "Size", "Folder"])
+        self.tree.setHeaderLabels(["File", "Length", "Quality", "Size", "Folder"])
         self.tree.setAlternatingRowColors(True)
         self.tree.setSelectionMode(QAbstractItemView.NoSelection)
-        self.tree.setColumnWidth(0, 360)
-        self.tree.setColumnWidth(1, 170)
-        self.tree.setColumnWidth(2, 80)
-        self.groups = []
-        for tracks in sets:
-            top = QTreeWidgetItem([f"{tracks[0].display}  ·  {len(tracks)} copies"])
-            top.setFirstColumnSpanned(True)
-            font = top.font(0)
+        for col, width in enumerate((380, 70, 170, 80)):
+            self.tree.setColumnWidth(col, width)
+        self.groups = []  # (header item, file items, exact?)
+        for title, sets, exact in (("Exact duplicates", exact, True), ("Possible duplicates: maybe different "
+                                                                         "versions", possible, False)):
+            if not sets:
+                continue
+            section = QTreeWidgetItem([f"{title}  ({len(sets)})"])
+            section.setFirstColumnSpanned(True)
+            section.setForeground(0, QColor(theme.ACCENT_HI))
+            font = section.font(0)
             font.setBold(True)
-            top.setFont(0, font)
-            self.tree.addTopLevelItem(top)
-            children = []
-            for i, t in enumerate(tracks):
-                item = QTreeWidgetItem(top, [t.path.name, _quality(t), human_size(t.size), str(t.path.parent)])
-                item.setData(0, Qt.UserRole, str(t.path))
-                item.setToolTip(0, str(t.path))
-                item.setToolTip(3, str(t.path.parent))
-                item.setCheckState(0, Qt.Unchecked if i == 0 else Qt.Checked)
-                children.append(item)
-            self.groups.append((top, children))
+            section.setFont(0, font)
+            self.tree.addTopLevelItem(section)
+            for tracks in sets:
+                top = QTreeWidgetItem(section, [f"{tracks[0].display}  ·  {len(tracks)} files"])
+                top.setFirstColumnSpanned(True)
+                children = []
+                for i, t in enumerate(tracks):
+                    item = QTreeWidgetItem(top, [t.path.name, human_duration(t.duration), _quality(t),
+                                                 human_size(t.size), str(t.path.parent)])
+                    item.setData(0, Qt.UserRole, str(t.path))
+                    item.setToolTip(0, str(t.path))
+                    item.setToolTip(4, str(t.path.parent))
+                    item.setCheckState(0, Qt.Checked if exact and i else Qt.Unchecked)
+                    children.append(item)
+                self.groups.append((top, children, exact))
         self.tree.expandAll()
         self.tree.itemChanged.connect(self._update)
         lay.addWidget(self.tree, 1)
 
-        reset = button("Keep best of each", icon="check")
+        reset = button("Keep best of each", icon="check", tip="Exact duplicates: tick all but the best copy")
         reset.clicked.connect(lambda: self._set_all(True))
         none = button("Untick all")
         none.clicked.connect(lambda: self._set_all(False))
@@ -84,30 +94,32 @@ class DuplicatesDialog(QDialog):
 
     def _set_all(self, keep_best):
         self.tree.blockSignals(True)
-        for _, children in self.groups:
+        for _, children, exact in self.groups:
             for i, item in enumerate(children):
-                item.setCheckState(0, Qt.Checked if keep_best and i else Qt.Unchecked)
+                item.setCheckState(0, Qt.Checked if keep_best and exact and i else Qt.Unchecked)
         self.tree.blockSignals(False)
         self._update()
 
     def _update(self, *_):
         paths = self.chosen()
-        size = sum(Path(p).stat().st_size for p in paths if Path(p).exists())
+        size = sum(p.stat().st_size for p in paths if p.exists())
         self.count.setText(f"{len(paths)} file(s) ticked, {human_size(size)}")
         self.ok.setText(f"Move {len(paths)} to trash")
         self.ok.setEnabled(bool(paths))
-        for top, children in self.groups:
+        for top, children, _ in self.groups:
             every = all(c.checkState(0) == Qt.Checked for c in children)
             top.setForeground(0, QColor(theme.ERR if every else theme.TEXT))
             top.setToolTip(0, "Every copy of this song is ticked — none would be left!" if every else "")
 
     def chosen(self):
-        return [Path(c.data(0, Qt.UserRole)) for _, children in self.groups for c in children
-                if c.checkState(0) == Qt.Checked]
+        # A file can appear in both sections; count it once
+        return list(dict.fromkeys(Path(c.data(0, Qt.UserRole)) for _, children, _ in self.groups
+                                  for c in children if c.checkState(0) == Qt.Checked))
 
     def _confirm(self):
-        lost = [top.text(0).split("  ·  ")[0] for top, children in self.groups
-                if all(c.checkState(0) == Qt.Checked for c in children)]
+        chosen = set(self.chosen())
+        lost = list(dict.fromkeys(top.text(0).split("  ·  ")[0] for top, children, _ in self.groups
+                                  if all(Path(c.data(0, Qt.UserRole)) in chosen for c in children)))
         if lost:
             names = "\n".join(f"• {n}" for n in lost[:8]) + ("\n…" if len(lost) > 8 else "")
             if QMessageBox.warning(self, "No copy left", f"Every copy of these songs is ticked, so they'd be gone "
@@ -190,7 +202,7 @@ class HealthPage(Page):
 
     def _show(self, issues):
         self.issues = issues
-        self.dupes_btn.setEnabled(any(i.kind == "Duplicate" for i in self.issues))
+        self.dupes_btn.setEnabled(any(i.kind in ("Duplicate", "Possible duplicate") for i in self.issues))
         counts = Counter(i.kind for i in self.issues)
         self.filter.blockSignals(True)
         self.filter.clear()
@@ -244,26 +256,39 @@ class HealthPage(Page):
         if self.jobs.busy:
             QMessageBox.information(self, "Busy", f"Wait for “{self.jobs.name}” to finish first.")
             return
-        sets = health.duplicate_sets(self.tracks)
-        if not sets:
-            QMessageBox.information(self, "No duplicates", "No exact duplicates left to remove.")
+        exact, possible = health.duplicate_sets(self.tracks)
+        if not exact and not possible:
+            QMessageBox.information(self, "No duplicates", "No duplicates left to remove.")
             return
-        dlg = DuplicatesDialog(self, sets)
+        dlg = DuplicatesDialog(self, exact, possible)
         if dlg.exec() != QDialog.Accepted:
             return
+        library, opus = SETTINGS.library, SETTINGS.opus
         trashed, failed = set(), []
         for path in dlg.chosen():
             ok, _ = QFile.moveToTrash(str(path))
-            if ok:
-                trashed.add(path)
-            else:
+            if not ok:
                 failed.append(path)
-        for path in trashed:
+                continue
+            trashed.add(path)
             self.log.append(f"Moved to trash: {path}")
+            # Its Opus copy goes too, or the phone would keep the song
+            try:
+                copy = opus_path_for(path, library, opus) if path.is_relative_to(library) else None
+            except ValueError:
+                copy = None
+            if copy and copy.exists():
+                if QFile.moveToTrash(str(copy))[0]:
+                    self.log.append(f"Moved to trash: {copy}")
+                else:
+                    self.log.append(f"Couldn't move the Opus copy to trash: {copy}", "error")
         for path in failed:
             self.log.append(f"Couldn't move to trash: {path}", "error")
         if not trashed:
             return
+        if changed := playlists.drop(library, trashed):
+            playlists.export(Context(), library, opus)
+            self.log.append(f"Removed them from {changed} playlist(s).")
         # Drop the trashed files and recount duplicates among what's left
         self.tracks = [t for t in self.tracks if t.path not in trashed]
         if self.store.loaded_once:

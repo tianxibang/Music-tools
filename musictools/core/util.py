@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 APP_NAME = "Music Tools"
-APP_VERSION = "3.0"
+APP_VERSION = "3.2"
 NO_WINDOW = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
 MUSIC = Path.home() / "Music"
 
