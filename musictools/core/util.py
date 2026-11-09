@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 APP_NAME = "Music Tools"
-APP_VERSION = "3.2"
+APP_VERSION = "3.3"
 NO_WINDOW = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
 MUSIC = Path.home() / "Music"
 
@@ -53,6 +53,8 @@ DEFAULTS = {
     "net_require_pairing": True,
     "net_usb": True,
     "phone_mode": "app",  # app | adb
+    "import_source": "",
+    "import_check_fakes": True,
 }
 
 
@@ -138,6 +140,15 @@ def opus_path_for(flac, library=None, opus=None):
     opus = Path(opus or SETTINGS.opus)
     rel = Path(flac).relative_to(library).with_suffix(".opus")
     return opus.joinpath(*(sanitize_android(p) for p in rel.parts))
+
+
+def export_path_for(src, library=None, opus=None):
+    """Where a library file lives in the export: FLACs as .opus, lossy files (kept as they are) unchanged."""
+    if Path(src).suffix.lower() == ".flac":
+        return opus_path_for(src, library, opus)
+    library = Path(library or SETTINGS.library)
+    opus = Path(opus or SETTINGS.opus)
+    return opus.joinpath(*(sanitize_android(p) for p in Path(src).relative_to(library).parts))
 
 
 def audio_files(folder, exts=AUDIO_EXTS):

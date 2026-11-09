@@ -4,7 +4,7 @@ to <opus>/Playlists pointing at the Opus files, which then sync to the phone lik
 import os
 from pathlib import Path
 
-from .util import opus_path_for, safe_filename
+from .util import export_path_for, safe_filename
 
 FOLDER = "Playlists"
 
@@ -83,7 +83,7 @@ def export(ctx, library, opus):
         tracks, missing = [], 0
         for e in load(pl):
             try:
-                o = opus_path_for(e, library, opus) if e.suffix.lower() == ".flac" else e
+                o = export_path_for(e, library, opus)
             except ValueError:  # outside the library
                 o = e
             if o.exists():

@@ -47,6 +47,7 @@ import io.github.tianxibang.musictools.data.Prefs
 import io.github.tianxibang.musictools.data.Selection
 import io.github.tianxibang.musictools.net.Track
 import io.github.tianxibang.musictools.sync.SyncLog
+import io.github.tianxibang.musictools.sync.isSong
 import io.github.tianxibang.musictools.sync.SyncWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -77,7 +78,7 @@ fun LibraryScreen() {
     LaunchedEffect(sync.lastRun, s.musicDir) {
         phone = withContext(Dispatchers.IO) {
             val root = File(s.musicDir)
-            val files = root.walkTopDown().filter { it.isFile && it.extension.equals("opus", true) }.toList()
+            val files = root.walkTopDown().filter { it.isFile && isSong(it.name) }.toList()
             val fs = runCatching { StatFs(root.takeIf { it.exists() }?.path ?: "/storage/emulated/0") }.getOrNull()
             PhoneStats(files.map { it.relativeTo(root).invariantSeparatorsPath }.toSet(), files.sumOf { it.length() },
                 fs?.availableBytes ?: 0, fs?.totalBytes ?: 0)
@@ -167,7 +168,7 @@ fun LibraryScreen() {
                     val wanted = Selection.wantedPaths(snap, s.selection, prefsStore.sentFromPhone)
                     val size = wanted.sumOf { snap.byPath[it]?.size ?: 0 }
                     val free = (phone?.free ?: 0) + (phone?.bytes ?: 0)
-                    Text("${count(wanted.count { it.endsWith(".opus") }, "song")} selected · ${bytes(size)}",
+                    Text("${count(wanted.count { isSong(it) }, "song")} selected · ${bytes(size)}",
                         color = if (free in 1 until size) Palette.Err else Palette.Text)
                     Hint(if (free in 1 until size) "That's more than fits on the phone." else
                         "Songs you don't pick are removed from the phone on the next sync (never from the PC). " +

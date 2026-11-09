@@ -2,7 +2,7 @@ from collections import Counter
 
 from pathlib import Path
 
-from PySide6.QtCore import QFile, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QHeaderView, QMessageBox,
                                QTableWidget, QTableWidgetItem, QTreeWidget, QTreeWidgetItem, QVBoxLayout)
@@ -12,17 +12,11 @@ from ...core.jobs import Context
 from ...core.util import LOSSLESS_EXTS, SETTINGS, human_duration, human_size, opus_path_for, reveal
 from .. import theme
 from ..main_window import Page
-from ..widgets import Card, LogPanel, Toggle, button, hbox, label
+from ..widgets import Card, LogPanel, Toggle, button, hbox, label, trash_file as _trash
 
 KIND_COLORS = {"Corrupt": theme.ERR, "Unreadable": theme.ERR, "Lossy source": theme.WARN, "Duplicate": theme.WARN,
                "Possible duplicate": theme.MUTED, "Missing tags": theme.ACCENT_HI, "No cover art": theme.ACCENT_HI,
                "Low quality": theme.WARN}
-
-
-def _trash(path):
-    """Move a file to the trash. PySide6 returns a bool here, not the (bool, path) its stubs promise."""
-    res = QFile.moveToTrash(str(path))
-    return bool(res[0] if isinstance(res, tuple) else res)
 
 
 def _quality(t):

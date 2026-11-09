@@ -6,7 +6,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from . import tags
-from .util import audio_files, find_tool, opus_path_for
+from .util import AUDIO_EXTS, LOSSLESS_EXTS, audio_files, export_path_for, find_tool, opus_path_for
+
+# Lossy files in the library (MP3, AAC, …: e.g. imported in the Lossy folder) aren't converted again,
+# which would only lose more quality: they're copied into the export as they are.
+LOSSY_EXTS = AUDIO_EXTS - LOSSLESS_EXTS
 
 
 def encoder():
@@ -23,11 +27,36 @@ def plan(library, opus):
     return [(f, opus_path_for(f, library, opus)) for f in audio_files(library, {".flac"})]
 
 
+def lossy_plan(library, opus):
+    """(source, copy) pairs for the lossy files in the library; the copy keeps its format."""
+    library, opus = Path(library), Path(opus)
+    return [(f, export_path_for(f, library, opus)) for f in audio_files(library, LOSSY_EXTS)]
+
+
+def copy_lossy(ctx, library, opus):
+    """Copy new or changed lossy files into the export. Returns the copies made."""
+    import shutil
+    done = []
+    for src, dst in lossy_plan(library, opus):
+        if dst.exists() and dst.stat().st_size == src.stat().st_size:
+            continue
+        ctx.check()
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        tmp = dst.with_name(dst.name + ".part")
+        shutil.copy2(src, tmp)
+        os.replace(tmp, dst)
+        done.append(dst)
+    if done:
+        ctx.log(f"Copied {len(done)} lossy file(s) into the export as they are.", "ok")
+    return done
+
+
 def status(library, opus):
     pairs = plan(library, opus)
-    expected = {o for _, o in pairs}
+    lossy = lossy_plan(library, opus)
+    expected = {o for _, o in pairs} | {c for _, c in lossy}
     orphans = [p for p in audio_files(opus, {".opus"}) if p not in expected]
-    pending = [f for f, o in pairs if not o.exists()]
+    pending = [f for f, o in pairs if not o.exists()] + [f for f, c in lossy if not c.exists()]
     return {"flac": len(pairs), "pending": pending, "orphans": orphans}
 
 
@@ -41,6 +70,8 @@ def convert(ctx, library, opus, bitrate=128, jobs=4, dry=False):
     if not library.is_dir():
         ctx.log(f"Library folder '{library}' not found.", "error")
         return []
+    if not dry:
+        copy_lossy(ctx, library, opus)
 
     # Leftovers from an interrupted run would otherwise look like finished files
     if opus.is_dir() and not dry:

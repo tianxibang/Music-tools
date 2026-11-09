@@ -41,12 +41,29 @@ That's it: the phone syncs about every 30 minutes on Wi-Fi, or whenever you tap 
 |---|---|
 | Dashboard | Library stats, phone status, watch folder, **one-click pipeline** (convert → cover art → loudness → playlists → sync) |
 | Convert | FLAC → Opus in parallel, skips finished files, finds orphaned Opus files |
+| Import | Merge music from another drive or folder: adds new songs, replaces worse copies with better ones, skips what you have |
 | Phone | How the phone syncs: with the **phone app** (two-way, background, Wi-Fi or USB), or **without the app** (one-way copy over adb) |
 | Tag editor | Searchable table, bulk-edit tags and covers, rename files from tags, tags from file names. Edits carry over to the Opus copies |
 | Health check | Missing tags or art, duplicates (review them and move extras to the trash), corrupt files, FLACs made from MP3s (spectrum check) |
 | Art & loudness | Fetch missing covers (MusicBrainz), copy covers into Opus, ReplayGain/R128 loudness tags |
 | Playlists | `.m3u8` playlists stored in `<library>/Playlists`, exported with Opus paths so they sync to the phone |
 | Organize | Folder info (size, play time, artists, genres, decades, quality), tag-based sorter, flatten |
+
+### Importing from a drive
+
+Plug in a drive (or pick any folder), press **Scan**, and Music Tools compares every song on it with your library:
+
+- **New songs** are added with your sort template; WAV/AIFF become FLAC on the way in.
+- **Better copies** (FLAC instead of your MP3, 24-bit instead of 16-bit) replace yours, **keeping your tags and
+  cover**; the old file goes to the trash. Optionally, lossless files are checked for signs of an MP3 source first,
+  so a fake can't replace a real FLAC.
+- **Lossy songs** you don't have (MP3, AAC, …) go into a separate `Lossy` folder in your library and reach the phone
+  as they are. A FLAC of the same song later replaces them.
+- **Other versions** (demo, live, acoustic, …) are listed for you to decide; what you already have, in equal or
+  better quality, is skipped.
+
+**Import suggested** does all of that in one click; **Review…** lets you tick and untick first. The drive is only
+read: files are copied and every copy is verified.
 
 ## Phone app
 

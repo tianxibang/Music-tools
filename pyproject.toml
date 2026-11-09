@@ -1,6 +1,6 @@
 [project]
 name = "music-tools"
-version = "3.2"
+version = "3.3"
 description = "Convert, tag, check, organize and sync a FLAC library to an Android phone"
 requires-python = ">=3.11"
 license = "GPL-3.0-or-later"

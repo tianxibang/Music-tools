@@ -19,8 +19,13 @@ import kotlinx.serialization.json.Json
 import java.io.File
 import java.security.MessageDigest
 
+/** Songs the PC sends: Opus, plus lossy files it keeps as they are (its Lossy folder). */
+val SONG_EXTENSIONS = setOf("opus", "ogg", "mp3", "m4a", "aac", "wma")
+
 /** Files the mirror manages; anything else in the music folder (e.g. a FLAC you put there) is never deleted. */
-private val MIRRORED = setOf("opus", "ogg", "m3u", "m3u8")
+private val MIRRORED = SONG_EXTENSIONS + setOf("m3u", "m3u8")
+
+fun isSong(path: String) = path.substringAfterLast('.', "").lowercase() in SONG_EXTENSIONS
 
 @Serializable
 data class Pending(val path: String, val id: String, val sha256: String, val size: Long, val mtime: Long)
@@ -246,7 +251,7 @@ class SyncEngine(private val context: Context, private val log: SyncLog, private
             }
             // Other files (e.g. cover images) are tiny and kept; playlists only when selected
             all.filter { f ->
-                f.path in keep || (!f.path.endsWith(".opus") && !f.path.startsWith("Playlists/"))
+                f.path in keep || (!isSong(f.path) && !f.path.startsWith("Playlists/"))
             }
         }
         musicDir.mkdirs()

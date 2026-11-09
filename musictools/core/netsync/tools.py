@@ -11,7 +11,7 @@ from pathlib import Path
 from .. import convert, pipeline, playlists
 from ..jobs import EXCLUSIVE, Cancelled, Context
 from ..tags import read_track
-from ..util import opus_path_for, safe_filename
+from ..util import AUDIO_EXTS, LOSSLESS_EXTS, export_path_for, opus_path_for, safe_filename
 from .library import safe_join
 from .security import state_dir
 
@@ -34,21 +34,24 @@ class TrackIndex:
         t = read_track(path)
         tags = {k: t.tag(k) for k in TRACK_FIELDS if t.tag(k)}
         source = ""
-        if flac and flac.is_file():  # quality of the lossless original, e.g. "16-bit / 44.1 kHz"
+        if flac and flac.is_file():  # quality of the original: "16-bit / 44.1 kHz", or "MP3 · 320 kbps" if lossy
             f = read_track(flac)
-            if f.sample_rate:
+            if flac.suffix.lower() not in LOSSLESS_EXTS:
+                source = f"{flac.suffix[1:].upper()} · {f.bitrate} kbps" if f.bitrate else flac.suffix[1:].upper()
+            elif f.sample_rate:
                 source = f"{f.bits or '?'}-bit / {f.sample_rate / 1000:g} kHz"
         return {"path": rel, "size": st.st_size, "mtime": st.st_mtime, "duration": round(t.duration, 1),
                 "bitrate": t.bitrate, "art": t.has_art, "source": source, "tags": tags}
 
     def tracks(self, opus_root, library=None):
         root = Path(opus_root)
-        to_flac = {o: f for f, o in convert.plan(library, root)} if library and Path(library).is_dir() else {}
+        to_flac = ({o: f for f, o in convert.plan(library, root) + convert.lossy_plan(library, root)}
+                   if library and Path(library).is_dir() else {})
         with self._lock:
             files = []
             if root.is_dir():
-                for p in root.rglob("*.opus"):
-                    if p.is_file():
+                for p in root.rglob("*"):
+                    if p.is_file() and p.suffix.lower() in AUDIO_EXTS:
                         files.append((p, p.relative_to(root).as_posix(), p.stat()))
             fresh, todo = {}, []
             for p, rel, st in files:
@@ -109,7 +112,7 @@ def list_playlists(library, opus):
         tracks, missing = [], 0
         for e in playlists.load(pl):
             try:
-                o = opus_path_for(e, library, opus) if e.suffix.lower() == ".flac" else e
+                o = export_path_for(e, library, opus)
             except ValueError:
                 o = e
             if o.exists() and o.is_relative_to(opus):
@@ -130,7 +133,7 @@ def save_playlist(library, opus, name, tracks):
     path = _playlist_file(library, name)
     if path is None:
         raise ValueError("Invalid playlist name")
-    to_flac = {o: f for f, o in convert.plan(library, opus)}
+    to_flac = {o: f for f, o in convert.plan(library, opus) + convert.lossy_plan(library, opus)}
     flacs = []
     for rel in tracks:
         o = safe_join(opus, rel) if isinstance(rel, str) else None
