@@ -1,14 +1,16 @@
 # Music Tools
 
-Keep a lossless FLAC library on your PC and an Opus copy of it on your Android phone, in sync both ways.
+Keep a lossless FLAC library on your PC and an Opus copy of it on your Android phone and your other computers,
+in sync both ways.
 
 - **Desktop app** (Windows, Linux): convert, tag, check and organize the FLAC library, and serve it to your phone
   and your other computers.
 - **Phone app** (Android): mirrors the library as Opus over Wi-Fi or a USB cable, sends FLACs you got on the go
   back to the PC, and lets you manage playlists, choose what to sync and run the PC's tools from the phone.
 
-The PC holds the master copy. A FLAC that lands on your phone goes to the PC, gets filed into the library and
-converted, and comes back as Opus; the phone's FLAC is removed once the Opus has arrived.
+The main PC holds the master copy. A FLAC that lands on your phone goes to the PC, gets filed into the library and
+converted, and comes back as Opus; the phone's FLAC is removed once the Opus has arrived. A laptop or second
+desktop can follow the main PC the same way, with its own FLAC and/or Opus copy.
 
 <p align="center">
   <img src="assets/screenshots/desktop-phone.png" alt="The desktop app's Sync page" width="68%">
@@ -34,6 +36,8 @@ The desktop app needs ffmpeg and opusenc; see [External programs](#external-prog
 
 That's it: the phone syncs about every 30 minutes on Wi-Fi, or whenever you tap **Sync now**.
 
+Got a second computer? Install Music Tools there too and see [Other computers](#other-computers).
+
 ## Desktop app
 
 <p align="center"><img src="assets/screenshots/desktop-tags.png" alt="The tag editor" width="80%"></p>
@@ -45,10 +49,18 @@ That's it: the phone syncs about every 30 minutes on Wi-Fi, or whenever you tap 
 | Import | Merge music from another drive or folder: adds new songs, replaces worse copies with better ones, skips what you have |
 | Sync | Whether this PC is the **main library** or **follows another PC**, and how the phone syncs: with the **phone app** (two-way, background, Wi-Fi or USB), or **without the app** (one-way copy over adb) |
 | Tag editor | Searchable table, bulk-edit tags and covers, rename files from tags, tags from file names. Edits carry over to the Opus copies |
-| Health check | Missing tags or art, duplicates (review them and move extras to the trash), corrupt files, FLACs made from MP3s (spectrum check) |
+| Health check | Missing tags or art, duplicates, corrupt files, FLACs made from MP3s (spectrum check) |
 | Art & loudness | Fetch missing covers (MusicBrainz), copy covers into Opus, ReplayGain/R128 loudness tags |
 | Playlists | `.m3u8` playlists stored in `<library>/Playlists`, exported with Opus paths so they sync to the phone |
 | Organize | Folder info (size, play time, artists, genres, decades, quality), tag-based sorter, flatten |
+
+### Duplicates
+
+**Health check** finds songs you have more than once, whatever the file names or formats. **Remove duplicates…**
+lists each song once with all its files, labelled **Best copy (kept)**, **Copy** or **Other version: live, demo,
+acoustic, remix, …**. Only the extra copies are ticked; other versions are kept unless you tick them. Songs that
+are probably, but not certainly, the same appear as **possible duplicates** for you to check. Removed files go to
+the trash together with their Opus copies and are taken out of your playlists, so they leave the phone too.
 
 ### Importing from a drive
 
@@ -75,8 +87,9 @@ with the main PC (**Pair a device…** there). It then
   (or with **Sync now**), and removes what the main PC removed. Only files a sync put there are ever removed, and
   big removals ask first;
 - **sends changes back**: music dropped into its **New music** folder and tag edits made in its tag editor wait
-  in an outbox. Tick what to send, or let it send automatically. The main PC files new music like an import
-  (duplicates skipped, better copies upgrade worse ones) and passes everything on to all devices;
+  in an outbox (files leave the folder once the main PC has them). Tick what to send, or let it send
+  automatically. The main PC files new music like an import (duplicates skipped, better copies upgrade worse
+  ones) and passes everything on to all devices;
 - **handles conflicts**: if the main PC changed the same tag in the meantime, nothing is overwritten. You choose
   **Keep mine** or **Use the main PC's**.
 
@@ -100,8 +113,10 @@ renaming) are used on the main PC instead, so there's always one version of the 
 
 What a sync does:
 
-1. Sends new FLACs from the phone's `Download` and `Music` folders to the PC, which checks them, skips songs it
-   already has (by audio fingerprint, whatever the tags), files the rest with your sort template and converts them.
+1. Sends new FLACs from the phone's `Download` and `Music` folders to the PC, which checks them and files them
+   with the same rules as an [import](#importing-from-a-drive): songs it already has are skipped (by audio
+   fingerprint, whatever the tags), better copies replace worse ones, and the rest are sorted with your template
+   and converted.
 2. Downloads the Opus versions, then deletes the phone's FLACs, but only if unchanged since they were sent
    (can be turned off).
 3. Mirrors the PC's Opus export into `Music/opus_export`, the same folder the adb sync uses. Only Opus and
@@ -137,7 +152,8 @@ tools instead: one-way, over USB or Wireless debugging, started from the PC, wit
 
 ### Headless server
 
-For an always-on PC: `music-tools --serve` runs only the sync server (add `--pair` to print a pairing code).
+For an always-on PC: `music-tools --serve` runs only the sync server, for phones and following computers alike
+(add `--pair` to print a pairing code).
 
 Phone can't find the PC on Linux? Open the firewall:
 `sudo firewall-cmd --add-port=47321/tcp --add-service=mdns --permanent && sudo firewall-cmd --reload`
@@ -161,7 +177,7 @@ Windows: `winget install Gyan.FFmpeg Google.PlatformTools`, or drop the `.exe`s 
 uv sync                                   # or: python -m venv .venv && .venv/bin/pip install -e .
 uv run python launcher.py                 # run from source
 ./install-linux.sh                        # optional: add it to the app menu
-uv run --group dev pytest -q tests        # tests (sync server, pairing, security checks, inbox, playlists, …)
+uv run --group dev pytest -q tests        # tests (sync server, pairing, followers, import, duplicates, …)
 uv run --group build python build.py      # standalone app in dist/MusicTools/ (add --onefile for one file)
 ```
 
@@ -184,7 +200,7 @@ lives in `musictools/core/netsync/` and `android/.../net/`; the tests check that
 Pushing a version tag builds Windows, Linux and Android, runs the tests, and publishes a GitHub release:
 
 ```bash
-git tag v3.1 && git push origin v3.1
+git tag v4.1 && git push origin v4.1
 ```
 
 The Android version code follows from the tag (3.1.2 → 30102), so each release installs over the previous one.
