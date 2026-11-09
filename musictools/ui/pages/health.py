@@ -26,58 +26,58 @@ def _quality(t):
 
 
 class DuplicatesDialog(QDialog):
-    """Exact duplicates with every copy but the best ticked, then possible duplicates (other versions or
-    lengths) with nothing ticked, for review."""
+    """One entry per song with all its files: extra copies are ticked, the best copy and other versions
+    (demo, live, …) are not."""
 
-    def __init__(self, parent, exact, possible):
+    def __init__(self, parent, groups):
         super().__init__(parent)
         self.setWindowTitle("Remove duplicates")
-        self.resize(1080, 660)
+        self.resize(1140, 660)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(20, 18, 20, 16)
         lay.setSpacing(10)
         lay.addWidget(label("Ticked files go to the trash together with their Opus copies, so you can still restore "
-                            "them, and they're taken out of your playlists. For exact duplicates, the best copy "
-                            "(lossless, highest resolution, cover art, most tags) is kept. Possible duplicates are "
-                            "often a demo, live or other version: nothing is ticked there, so decide for yourself.",
+                            "them, and they're taken out of your playlists. Extra copies of a song are ticked and "
+                            "the best copy (lossless, highest resolution, cover art, most tags) is kept. Other "
+                            "versions (demo, live, acoustic, …) are never ticked for you: decide for yourself.",
                             "hint", wrap=True))
 
         self.tree = QTreeWidget()
-        self.tree.setHeaderLabels(["File", "Length", "Quality", "Size", "Folder"])
+        self.tree.setHeaderLabels(["File", "What it is", "Length", "Quality", "Size", "Folder"])
         self.tree.setAlternatingRowColors(True)
         self.tree.setSelectionMode(QAbstractItemView.NoSelection)
-        for col, width in enumerate((380, 70, 170, 80)):
+        for col, width in enumerate((360, 200, 70, 160, 80)):
             self.tree.setColumnWidth(col, width)
-        self.groups = []  # (header item, file items, exact?)
-        for title, sets, exact in (("Exact duplicates", exact, True), ("Possible duplicates: maybe different "
-                                                                         "versions", possible, False)):
-            if not sets:
-                continue
-            section = QTreeWidgetItem([f"{title}  ({len(sets)})"])
-            section.setFirstColumnSpanned(True)
-            section.setForeground(0, QColor(theme.ACCENT_HI))
-            font = section.font(0)
+        self.groups = []  # (header item, file items)
+        for files in groups:
+            copies = sum(f.note in ("Copy", "Best copy (kept)") for f in files)
+            others = sum(f.note.startswith("Other version") for f in files)
+            parts = [f"{copies} copies"] * bool(copies) + [f"{others} other version{'s' * (others > 1)}"] * bool(others)
+            top = QTreeWidgetItem([f"{files[0].track.display}  ·  {len(files)} files: {', '.join(parts)}"])
+            top.setFirstColumnSpanned(True)
+            font = top.font(0)
             font.setBold(True)
-            section.setFont(0, font)
-            self.tree.addTopLevelItem(section)
-            for tracks in sets:
-                top = QTreeWidgetItem(section, [f"{tracks[0].display}  ·  {len(tracks)} files"])
-                top.setFirstColumnSpanned(True)
-                children = []
-                for i, t in enumerate(tracks):
-                    item = QTreeWidgetItem(top, [t.path.name, human_duration(t.duration), _quality(t),
-                                                 human_size(t.size), str(t.path.parent)])
-                    item.setData(0, Qt.UserRole, str(t.path))
-                    item.setToolTip(0, str(t.path))
-                    item.setToolTip(4, str(t.path.parent))
-                    item.setCheckState(0, Qt.Checked if exact and i else Qt.Unchecked)
-                    children.append(item)
-                self.groups.append((top, children, exact))
+            top.setFont(0, font)
+            self.tree.addTopLevelItem(top)
+            children = []
+            for f in files:
+                t = f.track
+                item = QTreeWidgetItem(top, [t.path.name, f.note, human_duration(t.duration), _quality(t),
+                                             human_size(t.size), str(t.path.parent)])
+                item.setData(0, Qt.UserRole, str(t.path))
+                item.setData(1, Qt.UserRole, f.remove)
+                item.setToolTip(0, str(t.path))
+                item.setToolTip(5, str(t.path.parent))
+                if f.note != "Copy":
+                    item.setForeground(1, QColor(theme.MUTED))
+                item.setCheckState(0, Qt.Checked if f.remove else Qt.Unchecked)
+                children.append(item)
+            self.groups.append((top, children))
         self.tree.expandAll()
         self.tree.itemChanged.connect(self._update)
         lay.addWidget(self.tree, 1)
 
-        reset = button("Keep best of each", icon="check", tip="Exact duplicates: tick all but the best copy")
+        reset = button("Suggested", icon="check", tip="Tick the extra copies, keep the best copy and other versions")
         reset.clicked.connect(lambda: self._set_all(True))
         none = button("Untick all")
         none.clicked.connect(lambda: self._set_all(False))
@@ -92,11 +92,11 @@ class DuplicatesDialog(QDialog):
         lay.addWidget(btns)
         self._update()
 
-    def _set_all(self, keep_best):
+    def _set_all(self, suggested):
         self.tree.blockSignals(True)
-        for _, children, exact in self.groups:
-            for i, item in enumerate(children):
-                item.setCheckState(0, Qt.Checked if keep_best and exact and i else Qt.Unchecked)
+        for _, children in self.groups:
+            for item in children:
+                item.setCheckState(0, Qt.Checked if suggested and item.data(1, Qt.UserRole) else Qt.Unchecked)
         self.tree.blockSignals(False)
         self._update()
 
@@ -106,20 +106,18 @@ class DuplicatesDialog(QDialog):
         self.count.setText(f"{len(paths)} file(s) ticked, {human_size(size)}")
         self.ok.setText(f"Move {len(paths)} to trash")
         self.ok.setEnabled(bool(paths))
-        for top, children, _ in self.groups:
+        for top, children in self.groups:
             every = all(c.checkState(0) == Qt.Checked for c in children)
             top.setForeground(0, QColor(theme.ERR if every else theme.TEXT))
             top.setToolTip(0, "Every copy of this song is ticked — none would be left!" if every else "")
 
     def chosen(self):
-        # A file can appear in both sections; count it once
-        return list(dict.fromkeys(Path(c.data(0, Qt.UserRole)) for _, children, _ in self.groups
-                                  for c in children if c.checkState(0) == Qt.Checked))
+        return [Path(c.data(0, Qt.UserRole)) for _, children in self.groups for c in children
+                if c.checkState(0) == Qt.Checked]
 
     def _confirm(self):
-        chosen = set(self.chosen())
-        lost = list(dict.fromkeys(top.text(0).split("  ·  ")[0] for top, children, _ in self.groups
-                                  if all(Path(c.data(0, Qt.UserRole)) in chosen for c in children)))
+        lost = [top.text(0).split("  ·  ")[0] for top, children in self.groups
+                if all(c.checkState(0) == Qt.Checked for c in children)]
         if lost:
             names = "\n".join(f"• {n}" for n in lost[:8]) + ("\n…" if len(lost) > 8 else "")
             if QMessageBox.warning(self, "No copy left", f"Every copy of these songs is ticked, so they'd be gone "
@@ -256,11 +254,11 @@ class HealthPage(Page):
         if self.jobs.busy:
             QMessageBox.information(self, "Busy", f"Wait for “{self.jobs.name}” to finish first.")
             return
-        exact, possible = health.duplicate_sets(self.tracks)
-        if not exact and not possible:
+        groups = health.duplicate_groups(self.tracks)
+        if not groups:
             QMessageBox.information(self, "No duplicates", "No duplicates left to remove.")
             return
-        dlg = DuplicatesDialog(self, exact, possible)
+        dlg = DuplicatesDialog(self, groups)
         if dlg.exec() != QDialog.Accepted:
             return
         library, opus = SETTINGS.library, SETTINGS.opus

@@ -98,16 +98,21 @@ def quality_key(t):
             sum(1 for v in t.tags.values() if v), t.size)
 
 
-def duplicate_sets(tracks):
-    """(exact, possible): lists of track groups, best copy first.
+@dataclass
+class DupFile:
+    track: object
+    note: str       # "Best copy", "Copy", "Other version: live", …
+    remove: bool    # suggested for removal (only extra copies, never other versions)
 
-    exact: copies of the same recording (same version, length within 3 s), safe to thin out.
-    possible: the same song in other versions (demo, live, …) or lengths; only for review, never pre-selected.
+
+def duplicate_groups(tracks):
+    """Every song that has more than one file, each file listed once, best first within its copies.
+
+    Copies of the same recording (same version, length within 3 s) suggest removing all but the best one.
+    Other versions (demo, live, …) or lengths are only listed, never suggested.
+    Songs with copies come first, then those that only have other versions.
     """
-    def best_first(group):
-        return sorted(group, key=quality_key, reverse=True)
-
-    exact, possible = [], []
+    groups = []
     for group in _song_groups(tracks):
         clusters = []
         for t in group:
@@ -116,13 +121,23 @@ def duplicate_sets(tracks):
                 home.append(t)
             else:
                 clusters.append([t])
-        exact += [best_first(c) for c in clusters if len(c) > 1]
-        if len(clusters) > 1:
-            possible.append(best_first(group))
-
-    def order(sets):
-        return sorted(sets, key=lambda s: (s[0].artist.lower(), s[0].title.lower()))
-    return order(exact), order(possible)
+        clusters = [sorted(c, key=quality_key, reverse=True) for c in clusters]
+        # The main recording: the biggest set of copies, else one without version words, else the best file
+        main = max(clusters, key=lambda c: (len(c), not _versions(c[0].tag("title")), quality_key(c[0])))
+        files = []
+        for c in [main] + [c for c in clusters if c is not main]:
+            for i, t in enumerate(c):
+                if len(c) > 1:
+                    files.append(DupFile(t, "Best copy (kept)" if i == 0 else "Copy", remove=i > 0))
+                elif c is main:
+                    files.append(DupFile(t, "Original", remove=False))
+                else:
+                    diff = _versions(t.tag("title")) ^ _versions(main[0].tag("title"))
+                    what = f"Other version: {', '.join(sorted(diff))}" if diff else "Other version: different length"
+                    files.append(DupFile(t, what, remove=False))
+        groups.append(files)
+    return sorted(groups, key=lambda g: (not any(f.remove for f in g), g[0].track.artist.lower(),
+                                         g[0].track.title.lower()))
 
 
 def decode_check(ctx, path, ffmpeg):
