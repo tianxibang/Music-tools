@@ -14,8 +14,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 # Qt modules the app doesn't use; leaving them out shrinks the build a lot
-EXCLUDES = ["PySide6.QtNetwork", "PySide6.QtQml", "PySide6.QtQuick", "PySide6.QtWebEngineCore", "PySide6.Qt3DCore",
-            "PySide6.QtMultimedia", "PySide6.QtPdf", "PySide6.QtCharts", "PySide6.QtDataVisualization",
+# (QtMultimedia, for playing songs in the lyrics editor, needs QtNetwork)
+EXCLUDES = ["PySide6.QtQml", "PySide6.QtQuick", "PySide6.QtWebEngineCore", "PySide6.Qt3DCore",
+            "PySide6.QtPdf", "PySide6.QtCharts", "PySide6.QtDataVisualization",
             "PySide6.QtOpenGL", "PySide6.QtSql", "PySide6.QtTest", "tkinter", "matplotlib", "scipy"]
 
 

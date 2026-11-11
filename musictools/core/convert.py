@@ -5,7 +5,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-from . import tags
+from . import lyrics, tags
 from .util import AUDIO_EXTS, LOSSLESS_EXTS, audio_files, export_path_for, find_tool, opus_path_for
 
 # Lossy files in the library (MP3, AAC, …: e.g. imported in the Lossy folder) aren't converted again,
@@ -83,6 +83,8 @@ def convert(ctx, library, opus, bitrate=128, jobs=4, dry=False):
     skipped = len(pairs) - len(todo)
     ctx.log(f"{len(todo)} to convert, {skipped} already done.")
     if not todo:
+        if not dry:
+            copy_lyrics(ctx, library, opus)
         return []
     if dry:
         for f, _ in todo:
@@ -114,7 +116,14 @@ def convert(ctx, library, opus, bitrate=128, jobs=4, dry=False):
 
     ctx.log(f"Done in {round(time.time() - start)} s: {len(done)} converted, {skipped} skipped, "
             f"{len(failed)} failed.", "ok" if not failed else "warn")
+    copy_lyrics(ctx, library, opus)
     return [o for _, o in done]
+
+
+def copy_lyrics(ctx, library, opus):
+    """.lrc files next to library songs go next to their copies in the export as well."""
+    if n := lyrics.copy_sidecars(library, opus, plan(library, opus) + lossy_plan(library, opus)):
+        ctx.log(f"Copied {n} lyrics file(s) (.lrc) into the export.", "ok")
 
 
 def encode(ctx, kind, exe, f, out, bitrate=128, part=".part"):

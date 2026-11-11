@@ -23,9 +23,12 @@ import java.security.MessageDigest
 val SONG_EXTENSIONS = setOf("opus", "ogg", "mp3", "m4a", "aac", "wma")
 
 /** Files the mirror manages; anything else in the music folder (e.g. a FLAC you put there) is never deleted. */
-private val MIRRORED = SONG_EXTENSIONS + setOf("m3u", "m3u8")
+private val MIRRORED = SONG_EXTENSIONS + setOf("m3u", "m3u8", "lrc")
 
 fun isSong(path: String) = path.substringAfterLast('.', "").lowercase() in SONG_EXTENSIONS
+
+/** A song's lyrics file (song.lrc next to song.opus). */
+fun isLyrics(path: String) = path.substringAfterLast('.', "").equals("lrc", true)
 
 @Serializable
 data class Pending(val path: String, val id: String, val sha256: String, val size: Long, val mtime: Long)
@@ -249,9 +252,11 @@ class SyncEngine(private val context: Context, private val log: SyncLog, private
                 log.line("Nothing is selected to sync. Pick some music in the Library tab.", Level.WARN)
                 return
             }
-            // Other files (e.g. cover images) are tiny and kept; playlists only when selected
+            // Other files (e.g. cover images) are tiny and kept; playlists only when selected, lyrics with their song
+            val keptSongs = keep.mapTo(HashSet()) { it.substringBeforeLast('.') }
             all.filter { f ->
-                f.path in keep || (!isSong(f.path) && !f.path.startsWith("Playlists/"))
+                f.path in keep || if (isLyrics(f.path)) f.path.substringBeforeLast('.') in keptSongs
+                else !isSong(f.path) && !f.path.startsWith("Playlists/")
             }
         }
         musicDir.mkdirs()
@@ -259,7 +264,9 @@ class SyncEngine(private val context: Context, private val log: SyncLog, private
         val todo = files.mapNotNull { rf ->
             val dest = safeChild(musicDir, rf.path) ?: return@mapNotNull null
             wanted[dest.canonicalPath] = rf.size
-            if (!dest.exists() || dest.length() != rf.size) rf to dest else null
+            // A lyrics edit (a nudged timing) often keeps the size, so those compare times too
+            val stale = isLyrics(rf.path) && rf.mtime != 0L && dest.lastModified() / 1000 != rf.mtime
+            if (!dest.exists() || dest.length() != rf.size || stale) rf to dest else null
         }
         val extras = if (s.keepExtraFiles) emptyList() else musicDir.walkTopDown()
             .filter { it.isFile && it.extension.lowercase() in MIRRORED && it.canonicalPath !in wanted }
@@ -270,6 +277,7 @@ class SyncEngine(private val context: Context, private val log: SyncLog, private
             log.status("Downloading ${dest.name}", i, todo.size)
             try {
                 client.download(rf.path, dest, rf.size) { got -> log.progress(got, rf.size) }
+                if (isLyrics(rf.path) && rf.mtime != 0L) dest.setLastModified(rf.mtime * 1000)
                 scan += dest.absolutePath
                 result.downloaded++
             } catch (e: SyncException) {

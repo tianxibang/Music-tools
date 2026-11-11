@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 APP_NAME = "Music Tools"
-APP_VERSION = "4.0"
+APP_VERSION = "4.1"
 NO_WINDOW = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
 MUSIC = Path.home() / "Music"
 
@@ -61,6 +61,9 @@ DEFAULTS = {
     "follow_send_auto": False,
     "follow_new_music": str(MUSIC / "New music"),
     "import_check_fakes": True,
+    "lyrics_save": "embed",          # embed | file | both (lyrics.SAVE_MODES)
+    "lyrics_tap_offset": 0.0,        # seconds taken off each tap, for reaction time
+    "lyrics_filter": "all",
 }
 
 

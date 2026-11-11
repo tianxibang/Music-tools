@@ -15,6 +15,7 @@ import time
 import uuid
 from pathlib import Path
 
+from ..tags import FIELD_LABELS
 from ..util import AUDIO_EXTS, human_size as _size, remove_empty_dirs, trash as util_trash
 from .client import Client, SyncError
 from .security import Identity, state_dir
@@ -121,8 +122,11 @@ class Follower:
         return self.settings.library if root == "library" else self.settings.opus
 
     def protected(self):
-        """Files with tag edits not sent yet: a sync must not overwrite them."""
-        return {(e["root"], e["path"]) for e in self.state["edits"]}
+        """Files with tag edits not sent yet (and their .lrc files): a sync must not overwrite them."""
+        out = {(e["root"], e["path"]) for e in self.state["edits"]}
+        out |= {(e["root"], Path(e["path"]).with_suffix(".lrc").as_posix()) for e in self.state["edits"]
+                if "lyrics" in e["changes"]}
+        return out
 
     def plan(self, ctx, client):
         """What a sync would change: {root: (downloads [(file info, dest, why)], removals [Path])}."""
@@ -278,6 +282,12 @@ class Follower:
                 e["changes"].pop(f, None)
                 e["conflicts"].pop(f, None)
             e["conflicts"].update(res["conflicts"])
+            # neither applied nor in conflict: the main PC doesn't know the field (an older Music Tools there)
+            e["ignored"] = [f for f in e["changes"] if f not in res["conflicts"]]
+            if e["ignored"]:
+                names = ", ".join(FIELD_LABELS.get(f, f).lower() for f in e["ignored"])
+                ctx.log(f"  {e['path']}: the main PC didn't take the {names} change. Update Music Tools there "
+                        f"and send it again.", "warn")
             if res["conflicts"]:
                 conflicts += 1
                 ctx.log(f"  {e['path']}: changed on the main PC too ({', '.join(res['conflicts'])})", "warn")

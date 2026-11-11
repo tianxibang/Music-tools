@@ -156,11 +156,12 @@ class MainWindow(QMainWindow):
         from ..core.netsync.follow import Follower
         self.follower = Follower(SETTINGS)
 
-        from .pages import (convert, dashboard, enhance, health, importer, organize, phone, playlists, settings,
-                            tags)
+        from .pages import (convert, dashboard, enhance, health, importer, lyrics, organize, phone, playlists,
+                            settings, tags)
         self.pages = [dashboard.DashboardPage(self), convert.ConvertPage(self), importer.ImportPage(self),
-                      phone.PhonePage(self), tags.TagsPage(self), health.HealthPage(self), enhance.EnhancePage(self),
-                      playlists.PlaylistsPage(self), organize.OrganizePage(self), settings.SettingsPage(self)]
+                      phone.PhonePage(self), tags.TagsPage(self), lyrics.LyricsPage(self), health.HealthPage(self),
+                      enhance.EnhancePage(self), playlists.PlaylistsPage(self), organize.OrganizePage(self),
+                      settings.SettingsPage(self)]
 
         root = QWidget()
         lay = QHBoxLayout(root)
@@ -229,7 +230,7 @@ class MainWindow(QMainWindow):
         self.nav.setIconSize(QSize(18, 18))
         self.nav.setCursor(Qt.PointingHandCursor)
         self.nav.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        sections = {4: "LIBRARY", 9: "APP"}
+        sections = {4: "LIBRARY", 10: "APP"}
         for i, p in enumerate(self.pages):
             if i in sections:
                 sep = QListWidgetItem(sections[i])
@@ -368,6 +369,9 @@ class MainWindow(QMainWindow):
         self.jobs.start("Auto-convert", pipeline.run, SETTINGS, steps, log=dash.log, on_done=done)
 
     def closeEvent(self, e):
+        if not all(p.confirm_close() for p in self.pages if hasattr(p, "confirm_close")):
+            e.ignore()
+            return
         if self.jobs.busy:
             from PySide6.QtWidgets import QMessageBox
             if QMessageBox.question(self, "Quit", f"“{self.jobs.name}” is still running. Stop it and quit?") \

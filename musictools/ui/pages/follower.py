@@ -18,6 +18,14 @@ GETS = [("flac", "The FLAC library (lossless)"), ("opus", "The Opus versions (sm
         ("both", "Both")]
 
 
+
+def _lyrics_change(old, new):
+    from ...core.lyrics import KIND_LABELS, kind_of
+    if not new.strip():
+        return "Lyrics removed"
+    kind = KIND_LABELS[kind_of(new)].lower()
+    return f"Lyrics ({kind}) added" if not old.strip() else f"Lyrics edited ({kind})"
+
 class PairMainDialog(QDialog):
     """Find the main PC on the network (or type its address) and pair with the code it shows."""
 
@@ -203,10 +211,17 @@ class FollowerPanel(Page):
         if edits:
             sec = self._section(f"Tag edits ({len(edits)})")
             for e in edits:
-                change = ", ".join(f"{FIELD_LABELS.get(k, k)}: {old or '—'} → {new or '—'}"
+                change = ", ".join(_lyrics_change(old, new) if k == "lyrics" else
+                                   f"{FIELD_LABELS.get(k, k)}: {old or '—'} → {new or '—'}"
                                    for k, (old, new) in e["changes"].items())
-                note = ", ".join(f"main PC has {FIELD_LABELS.get(k, k).lower()} “{v}”" for k, v in e["conflicts"].items())
-                item = QTreeWidgetItem(sec, [Path(e["path"]).name, change, note and f"Conflict: {note}"])
+                note = ", ".join("main PC has other lyrics" if k == "lyrics" else
+                                 f"main PC has {FIELD_LABELS.get(k, k).lower()} “{v}”"
+                                 for k, v in e["conflicts"].items())
+                note = note and f"Conflict: {note}"
+                if e.get("ignored"):
+                    names = ", ".join(FIELD_LABELS.get(k, k).lower() for k in e["ignored"])
+                    note = f"The main PC didn't take the {names}: update Music Tools there. " + note
+                item = QTreeWidgetItem(sec, [Path(e["path"]).name, change, note.strip()])
                 item.setData(0, Qt.UserRole, ("edit", e["id"]))
                 item.setToolTip(1, change)
                 item.setCheckState(0, Qt.Unchecked if e["conflicts"] else Qt.Checked)

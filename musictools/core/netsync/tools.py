@@ -107,18 +107,21 @@ def library_file(library, opus, rel, root="library"):
     return path if path and path.is_file() and path.suffix.lower() in AUDIO_EXTS else None
 
 
-def apply_tag_edits(library, opus, path, changes, force=False):
-    """Apply {field: (old, new)} to a library file and its export copy.
+def apply_tag_edits(library, opus, path, changes, force=False, lyrics_mode="embed"):
+    """Apply {field: (old, new)} to a library file and its export copy. "lyrics" is the lyrics text.
 
     A field whose value on this PC is no longer `old` (it was changed here too) isn't touched unless forced:
     it comes back in conflicts as {field: value here}.
     """
+    from .. import lyrics
     from ..organize import save_tags
     from ..tags import FIELDS
     current = read_track(path).tags
+    if "lyrics" in changes:
+        current["lyrics"] = lyrics.load(path)[0]
     write, applied, conflicts = {}, [], {}
     for field, (old, new) in changes.items():
-        if field not in FIELDS:
+        if field not in FIELDS and field != "lyrics":
             continue
         here = current.get(field, "")
         if here == new:
@@ -128,6 +131,8 @@ def apply_tag_edits(library, opus, path, changes, force=False):
             applied.append(field)
         else:
             conflicts[field] = here
+    if "lyrics" in write:
+        lyrics.save(path, write.pop("lyrics"), lyrics_mode, library, opus)
     if write:
         save_tags(path, write, library, opus)
     return {"applied": applied, "conflicts": conflicts}

@@ -7,7 +7,7 @@ them and playlists are updated, so nothing needs re-converting or ends up orphan
 import shutil
 from pathlib import Path
 
-from . import playlists
+from . import lyrics, playlists
 from .tags import render, write_tags
 from .util import opus_path_for, remove_empty_dirs
 
@@ -51,6 +51,11 @@ def apply_moves(ctx, moves, copy=False, library=None, opus=None):
             else:
                 shutil.move(str(src), str(dst))
             done[src] = dst
+            if copy:
+                if (side := lyrics.sidecar(src)).is_file() and not lyrics.sidecar(dst).exists():
+                    shutil.copy2(side, lyrics.sidecar(dst))
+            else:
+                lyrics.move_sidecar(src, dst)
             if mirror and not copy and src.suffix.lower() == ".flac":
                 _move_opus(src, dst, library, opus)
             ctx.log(f"  {src.name}  →  {dst.name}", "ok")
@@ -87,6 +92,7 @@ def _move_opus(old_flac, new_flac, library, opus):
     if old_o.exists() and not new_o.exists():
         new_o.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(old_o), str(new_o))
+        lyrics.move_sidecar(old_o, new_o)
 
 
 def plan_flatten(target):

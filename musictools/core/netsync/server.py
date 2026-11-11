@@ -35,7 +35,7 @@ from .security import Identity, PairingSession, Registry, server_proof
 from .tools import (RemotePipeline, TrackIndex, apply_tag_edits, delete_playlist, library_file, list_playlists,
                     save_playlist, summary)
 
-MAX_JSON = 64 * 1024
+MAX_JSON = 512 * 1024  # a tag edit can carry word-synced lyrics
 DEVICE_ID = re.compile(r"^[0-9a-f]{16,64}$")
 
 
@@ -415,7 +415,8 @@ class _Handler(BaseHTTPRequestHandler):
         path = library_file(s.library, s.opus, str(data.get("path", "")), str(data.get("root", "library")))
         if path is None:
             raise ApiError(404, "No such song in the library")
-        res = apply_tag_edits(s.library, s.opus, path, changes, bool(data.get("force")))
+        res = apply_tag_edits(s.library, s.opus, path, changes, bool(data.get("force")),
+                              s.get("lyrics_save", "embed"))
         if res["applied"]:
             self.sync.log(f"Tags of {path.name} changed from {self._device_name(device)}.")
             self.sync.on_change("library")

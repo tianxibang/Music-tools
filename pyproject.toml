@@ -1,6 +1,6 @@
 [project]
 name = "music-tools"
-version = "4.0"
+version = "4.1"
 description = "Convert, tag, check, organize and sync a FLAC library to an Android phone"
 requires-python = ">=3.11"
 license = "GPL-3.0-or-later"
@@ -9,6 +9,7 @@ dependencies = [
     "cryptography>=43",
     "mutagen>=1.47",
     "numpy>=1.26",
+    "pyside6-addons>=6.7",
     "segno>=1.6",
     "zeroconf>=0.136",
 ]

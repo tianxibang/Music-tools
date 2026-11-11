@@ -49,10 +49,40 @@ Got a second computer? Install Music Tools there too and see [Other computers](#
 | Import | Merge music from another drive or folder: adds new songs, replaces worse copies with better ones, skips what you have |
 | Sync | Whether this PC is the **main library** or **follows another PC**, and how the phone syncs: with the **phone app** (two-way, background, Wi-Fi or USB), or **without the app** (one-way copy over adb) |
 | Tag editor | Searchable table, bulk-edit tags and covers, rename files from tags, tags from file names. Edits carry over to the Opus copies |
+| Lyrics | Write lyrics, find them online (LRCLIB, also for many songs at once) and sync them line by line or word by word, with duets and ad-libs |
 | Health check | Missing tags or art, duplicates, corrupt files, FLACs made from MP3s (spectrum check) |
 | Art & loudness | Fetch missing covers (MusicBrainz), copy covers into Opus, ReplayGain/R128 loudness tags |
 | Playlists | `.m3u8` playlists stored in `<library>/Playlists`, exported with Opus paths so they sync to the phone |
 | Organize | Folder info (size, play time, artists, genres, decades, quality), tag-based sorter, flatten |
+
+### Lyrics
+
+Pick a song, then type or paste its lyrics in **Text** (or press **Find online…** to get them from
+[LRCLIB](https://lrclib.net), often already synced). Tick **Instrumental** for songs without words: they're marked
+`[instrumental:true]`, like many downloaders do, instead of counting as missing lyrics. To sync lyrics, open
+**Sync** and play the song:
+
+- **Tap along**: press **Enter** as each line starts (the next line is lined up for you, so you can tap through the
+  whole song), and **E** where a line ends before the next one, e.g. at an instrumental break, so it isn't shown
+  during it. Switch to **Word by word** to time every word for karaoke-style lyrics. Playing at **0.5×** or **0.25×**
+  makes this easier (the pitch stays the same), and **Tap delay** makes up for your reaction time.
+- **Fix it on the timeline**: drag a line, a word or an ad-lib, or their edges, over the waveform; you hear the audio
+  under the mouse while dragging. **Shift**+drag moves all later lines too, and edges snap to the playhead. You can
+  also type times in the list, or press **[** / **]** to set the selected line's start / end to the playhead.
+- **Duets and ad-libs**: set who sings each line (**Singer** column, **V**, or right-click), and add background
+  vocals and ad-libs to a line (**A**, or right-click) with their own timing. The preview shows them like Apple
+  Music does: singers left and right, ad-libs under their line.
+
+Lyrics are saved as LRC **in the music file**, **in a .lrc file next to it**, or **both**: Enhanced LRC for word
+timings, `v1:`/`v2:` for singers and `[bg: …]` lines for ad-libs, which most players show and the others simply
+skip. They go along to the Opus copies, the phone and your other computers; lyrics you edit on a computer that
+follows the main PC are sent to it like tag edits.
+
+**Many songs at once**: **Find for many songs…** looks up the songs in the list (filter it first, e.g. *Without
+lyrics*) and saves the sure matches straight away. The **Added online** tab lists what happened to each song, to
+check it: open it in the editor, use a match that wasn't sure, or **Undo**, which puts back the lyrics from before
+(replaced lyrics are backed up as .lrc files first). **Lyrics files…** moves lyrics out of the music files into
+.lrc files, or the other way round.
 
 ### Duplicates
 
@@ -163,7 +193,7 @@ Phone can't find the PC on Linux? Open the firewall:
 Found automatically next to the app, in a `bin/` folder beside it, or on PATH (or set them in Settings):
 
 - **opusenc** (opus-tools): the preferred Opus encoder
-- **ffmpeg**: loudness, health checks, and conversion if opusenc is missing
+- **ffmpeg**: loudness, health checks, playing songs in the lyrics editor, and conversion if opusenc is missing
 - **adb** (Android platform-tools): only for syncing over USB, or without the phone app
 
 Fedora: `sudo dnf install opus-tools ffmpeg android-tools` ·

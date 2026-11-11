@@ -15,7 +15,7 @@ from .util import AUDIO_EXTS, safe_filename
 
 FIELDS = ["title", "artist", "album", "albumartist", "tracknumber", "discnumber", "date", "genre"]
 FIELD_LABELS = {"title": "Title", "artist": "Artist", "album": "Album", "albumartist": "Album artist",
-                "tracknumber": "Track", "discnumber": "Disc", "date": "Year / date", "genre": "Genre"}
+                "tracknumber": "Track", "discnumber": "Disc", "date": "Year / date", "genre": "Genre", "lyrics": "Lyrics"}
 
 
 @dataclass
@@ -33,6 +33,7 @@ class Track:
     has_art: bool = False
     rg_gain: float | None = None
     r128: int | None = None
+    lyrics: str = ""          # "" | plain | lines | words (see lyrics.KIND_LABELS)
     error: str = ""
 
     def tag(self, key):
@@ -102,6 +103,7 @@ def read_track(path):
             if k in tags:
                 t.tags[k] = _first(tags[k])
         t.has_art = _has_art(path, m)
+        t.lyrics = _lyrics_kind(path, tags)
         if "replaygain_track_gain" in tags:
             t.rg_gain = _float(_first(tags["replaygain_track_gain"]))
         if "r128_track_gain" in tags:
@@ -112,6 +114,16 @@ def read_track(path):
     except Exception as e:
         t.error = str(e) or type(e).__name__
     return t
+
+
+def _lyrics_kind(path, tags):
+    from . import lyrics
+    if path.suffix.lower() in (".mp3", ".m4a", ".mp4", ".aac"):
+        embedded = lyrics.read_embedded(path)
+    else:
+        embedded = next((_first(tags[k]) for k in ("lyrics", "unsyncedlyrics") if k in tags), "")
+    side = lyrics.read_sidecar(path) if lyrics.sidecar(path).is_file() else ""
+    return max(lyrics.kind_of(embedded), lyrics.kind_of(side), key=lyrics._RANK.__getitem__)
 
 
 def _float(s):
