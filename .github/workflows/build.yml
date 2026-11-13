@@ -97,6 +97,9 @@ jobs:
         run: uv run --group dev pytest -q tests
       - name: Phone app against the desktop server
         run: tests/android_interop.sh
+      - name: Phone app unit tests
+        working-directory: android
+        run: ./gradlew --console=plain testDebugUnitTest --tests '*UpdaterTest*' --tests '*ToolsTest*' --tests '*ProtocolTest*'
 
       # The signing key lives only in repository secrets. Without them (e.g. a fork) the build
       # falls back to a debug APK, which installs fine but can't update a release install.

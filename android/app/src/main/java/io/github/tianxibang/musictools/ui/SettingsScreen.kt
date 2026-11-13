@@ -28,6 +28,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.tianxibang.musictools.data.Prefs
 import io.github.tianxibang.musictools.net.Pairing
 import io.github.tianxibang.musictools.sync.SyncWorker
+import io.github.tianxibang.musictools.update.Updater
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -43,6 +44,7 @@ fun SettingsScreen() {
     var musicDir by remember { mutableStateOf(s.musicDir) }
     var sources by remember { mutableStateOf(s.sourceDirs.joinToString("\n")) }
     var name by remember { mutableStateOf(prefs.deviceName) }
+    var updateStatus by remember { mutableStateOf<String?>(null) }
 
     fun update(reschedule: Boolean = false, block: (io.github.tianxibang.musictools.data.Settings) ->
         io.github.tianxibang.musictools.data.Settings) {
@@ -107,6 +109,25 @@ fun SettingsScreen() {
                     Text(if (pc.token == null) "Disconnect" else "Unpair")
                 }
             }
+        }
+        Section("App") {
+            Text("Music Tools ${Updater.currentVersion(context)}")
+            if (Updater.canUpdate(context)) {
+                OutlinedButton(enabled = updateStatus != "Checking…", onClick = {
+                    updateStatus = "Checking…"
+                    scope.launch {
+                        val res = withContext(Dispatchers.IO) { runCatching { Updater.check(context) } }
+                        updateStatus = res.fold({ rel ->
+                            Updater.offer = rel
+                            if (rel == null) "You have the latest version." else null
+                        }, { "Couldn't reach GitHub: ${it.message}" })
+                    }
+                }) { Text("Check for updates") }
+                Hint("New versions are also looked for when the app opens, at most twice a day")
+            } else {
+                Hint("Test build: install a release from GitHub to get updates")
+            }
+            updateStatus?.let { Hint(it) }
         }
         Spacer(Modifier.height(12.dp))
     }

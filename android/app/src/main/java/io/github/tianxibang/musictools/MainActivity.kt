@@ -50,6 +50,7 @@ import io.github.tianxibang.musictools.ui.PlaylistsScreen
 import io.github.tianxibang.musictools.ui.PermissionScreen
 import io.github.tianxibang.musictools.ui.SettingsScreen
 import io.github.tianxibang.musictools.ui.SyncScreen
+import io.github.tianxibang.musictools.update.UpdatePrompt
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -96,6 +97,7 @@ private fun Root() {
         })
         return
     }
+    UpdatePrompt()
     if (state.pc == null) {
         PairScreen()
         return
