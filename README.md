@@ -45,7 +45,7 @@ Got a second computer? Install Music Tools there too and see [Other computers](#
 | Page | What it does |
 |---|---|
 | Dashboard | Library stats, phone status, watch folder, **one-click pipeline** (convert → cover art → loudness → playlists → sync) |
-| Convert | FLAC → Opus in parallel, skips finished files, finds orphaned Opus files |
+| Convert | Library → Opus in parallel: FLACs, and anything phones play badly (Dolby Atmos / E-AC-3 `.m4a`, WMA, ALAC, multichannel, very high-bitrate lossy files); small MP3/AAC files are copied as they are. Skips finished files, finds orphaned files |
 | Import | Merge music from another drive or folder: adds new songs, replaces worse copies with better ones, skips what you have |
 | Sync | Whether this PC is the **main library** or **follows another PC**, and how the phone syncs: with the **phone app** (two-way, background, Wi-Fi or USB), or **without the app** (one-way copy over adb) |
 | Tag editor | Searchable table, bulk-edit tags and covers, rename files from tags, tags from file names. Edits carry over to the Opus copies |
@@ -100,8 +100,9 @@ Plug in a drive (or pick any folder), press **Scan**, and Music Tools compares e
 - **Better copies** (FLAC instead of your MP3, 24-bit instead of 16-bit) replace yours, **keeping your tags and
   cover**; the old file goes to the trash. Optionally, lossless files are checked for signs of an MP3 source first,
   so a fake can't replace a real FLAC.
-- **Lossy songs** you don't have (MP3, AAC, …) go into a separate `Lossy` folder in your library and reach the phone
-  as they are. A FLAC of the same song later replaces them.
+- **Lossy songs** you don't have (MP3, AAC, …) go into a separate `Lossy` folder in your library. Small MP3/AAC
+  files reach the phone as they are; anything phones play badly (a Dolby Atmos / E-AC-3 `.m4a`, WMA, 5.1 audio) or far
+  above the Opus bitrate is converted to Opus like a FLAC. A FLAC of the same song later replaces them.
 - **Other versions** (demo, live, acoustic, …) are listed for you to decide; what you already have, in equal or
   better quality, is skipped.
 
@@ -193,7 +194,9 @@ Phone can't find the PC on Linux? Open the firewall:
 Found automatically next to the app, in a `bin/` folder beside it, or on PATH (or set them in Settings):
 
 - **opusenc** (opus-tools): the preferred Opus encoder
-- **ffmpeg**: loudness, health checks, playing songs in the lyrics editor, and conversion if opusenc is missing
+- **ffmpeg**: loudness, health checks, playing songs in the lyrics editor, and converting anything that isn't FLAC or
+  WAV (or everything, if opusenc is missing). Dolby Atmos / E-AC-3 needs a full build: Fedora's `ffmpeg-free` can't
+  decode it, the RPM Fusion `ffmpeg` and the Windows builds can.
 - **adb** (Android platform-tools): only for syncing over USB, or without the phone app
 
 Fedora: `sudo dnf install opus-tools ffmpeg android-tools` ·

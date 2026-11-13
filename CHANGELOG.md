@@ -2,6 +2,23 @@
 
 Downloads for every version are on the [Releases](https://github.com/tianxibang/Music-tools/releases) page.
 
+## 4.1.1: Dolby Atmos and other formats (2026-11-13)
+
+### Convert decides by what's inside the file, not by its extension
+- **More formats become Opus.** Until now only FLACs were converted; every other file in the library was copied
+  to the phone as it was, including Dolby Atmos / E-AC-3 `.m4a` downloads that phones can't play. Now a file is
+  converted when it is lossless (FLAC, ALAC, WAV, …), when phones play its codec badly (E-AC-3, AC-3, WMA, …),
+  when it has more than two channels (downmixed to stereo), or when it is a lossy file far above the Opus bitrate
+  (more than 1.5× it). Small MP3/AAC files, and Opus files, are still copied as they are.
+- Cover art and embedded lyrics are carried over from those files too, and they get R128 loudness tags and
+  cover art from the pipeline like FLACs do.
+- A copy left behind by an earlier version (the `.m4a` next to its new `.opus`) is removed when the song is
+  converted; **Find orphaned files** on the Convert page now lists every file in the export without a source,
+  not only `.opus` files.
+- Converting anything that isn't FLAC or WAV needs ffmpeg, and Dolby Atmos needs a full build of it (Fedora's
+  `ffmpeg-free` can't decode E-AC-3; the message says so).
+- Renaming, tag edits and playlist entries follow the same rule, so a converted `.m4a` keeps its `.opus` in step.
+
 ## 4.1: Lyrics editor (2026-11-11)
 
 ### New: the Lyrics page

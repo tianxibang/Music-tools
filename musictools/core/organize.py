@@ -9,7 +9,7 @@ from pathlib import Path
 
 from . import lyrics, playlists
 from .tags import render, write_tags
-from .util import opus_path_for, remove_empty_dirs
+from .util import converts_to_opus, copy_path_for, export_path_for, opus_path_for, remove_empty_dirs
 
 
 def plan_moves(tracks, dest_root, template):
@@ -56,8 +56,8 @@ def apply_moves(ctx, moves, copy=False, library=None, opus=None):
                     shutil.copy2(side, lyrics.sidecar(dst))
             else:
                 lyrics.move_sidecar(src, dst)
-            if mirror and not copy and src.suffix.lower() == ".flac":
-                _move_opus(src, dst, library, opus)
+            if mirror and not copy:
+                _move_export(src, dst, library, opus)
             ctx.log(f"  {src.name}  →  {dst.name}", "ok")
         except Exception as e:
             ctx.log(f"  FAIL {src.name}: {e}", "error")
@@ -72,21 +72,22 @@ def apply_moves(ctx, moves, copy=False, library=None, opus=None):
 
 
 def save_tags(path, changes, library=None, opus=None):
-    """Write tags to a file, and to its Opus version too when it is a library FLAC."""
+    """Write tags to a file, and to its copy in the export too when it is a library file."""
     write_tags(path, changes)
-    if library and opus and Path(path).suffix.lower() == ".flac":
+    if library and opus:
         try:
-            o = opus_path_for(path, library, opus)
+            o = export_path_for(path, library, opus)
         except ValueError:
             return
-        if o.exists():
+        if o.exists() and o != Path(path):
             write_tags(o, changes)
 
 
-def _move_opus(old_flac, new_flac, library, opus):
-    try:
-        old_o = opus_path_for(old_flac, library, opus)
-        new_o = opus_path_for(new_flac, library, opus)
+def _move_export(old, new, library, opus):
+    """Rename the file's copy in the export along with it (its Opus version, or the as-is copy)."""
+    try:  # old is gone already, so new decides whether this file is one that gets converted
+        where = opus_path_for if converts_to_opus(new) else copy_path_for
+        old_o, new_o = where(old, library, opus), where(new, library, opus)
     except ValueError:
         return
     if old_o.exists() and not new_o.exists():

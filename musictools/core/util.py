@@ -9,12 +9,19 @@ import sys
 from pathlib import Path
 
 APP_NAME = "Music Tools"
-APP_VERSION = "4.1"
+APP_VERSION = "4.1.1"
 NO_WINDOW = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
 MUSIC = Path.home() / "Music"
 
 AUDIO_EXTS = {".flac", ".opus", ".ogg", ".mp3", ".m4a", ".aac", ".wav", ".wv", ".ape", ".aiff", ".aif", ".wma"}
 LOSSLESS_EXTS = {".flac", ".wav", ".wv", ".ape", ".aiff", ".aif"}
+
+# Codecs phones play well as they are. Anything else that lands in the library (Dolby Atmos / E-AC-3 or AC-3
+# in an .m4a, WMA, ALAC, …) is converted to Opus for the phone.
+PHONE_CODECS = {"mp3", "aac", "opus", "vorbis"}
+# A lossy file whose bitrate is more than this many times the Opus bitrate is converted too: the copy gets
+# much smaller and little is lost. Below that it is copied as it is (another lossy pass would only cost quality).
+KEEP_LOSSY_BELOW = 1.5
 
 
 def config_dir():
@@ -158,13 +165,79 @@ def trash(path):
     return bool(res[0] if isinstance(res, tuple) else res)
 
 
-def export_path_for(src, library=None, opus=None):
-    """Where a library file lives in the export: FLACs as .opus, lossy files (kept as they are) unchanged."""
-    if Path(src).suffix.lower() == ".flac":
-        return opus_path_for(src, library, opus)
+def copy_path_for(src, library=None, opus=None):
+    """Where a library file that is copied as it is (a small MP3, say) lives in the export."""
     library = Path(library or SETTINGS.library)
     opus = Path(opus or SETTINGS.opus)
     return opus.joinpath(*(sanitize_android(p) for p in Path(src).relative_to(library).parts))
+
+
+def export_path_for(src, library=None, opus=None):
+    """Where a library file lives in the export: as .opus when it is converted, else under its own name."""
+    if converts_to_opus(src):
+        return opus_path_for(src, library, opus)
+    return copy_path_for(src, library, opus)
+
+
+_MUTAGEN_CODECS = {"FLAC": "flac", "MP3": "mp3", "AAC": "aac", "OggOpus": "opus", "OggVorbis": "vorbis",
+                   "OggFLAC": "flac", "ASF": "wma", "WAVE": "pcm", "AIFF": "pcm", "WavPack": "wavpack",
+                   "MonkeysAudio": "ape", "TrueAudio": "tta"}
+_MP4_CODECS = {"ec-3": "eac3", "ac-3": "ac3"}
+LOSSLESS_CODECS = {"flac", "alac", "pcm", "wavpack", "ape", "tta"}
+
+
+def stream_info(path):
+    """(codec, channels, kbps, lossless) of an audio file. codec is '' when mutagen doesn't say."""
+    import mutagen
+    path = Path(path)
+    m = mutagen.File(path)
+    if m is None:
+        raise ValueError("Not a recognised audio file")
+    info = m.info
+    codec = _MUTAGEN_CODECS.get(type(m).__name__, "")
+    if type(m).__name__ == "MP4":
+        c = (getattr(info, "codec", "") or "").lower()  # "mp4a.40.2" (AAC), "alac", "ec-3", …
+        codec = "aac" if c.startswith("mp4a") else "alac" if c.startswith("alac") else _MP4_CODECS.get(c, c)
+    channels = getattr(info, "channels", 0) or 0
+    kbps = (getattr(info, "bitrate", 0) or 0) / 1000
+    length = getattr(info, "length", 0) or 0
+    if not kbps and length:  # mutagen reports 0 for some codecs (E-AC-3): the whole file's rate will do
+        kbps = path.stat().st_size * 8 / length / 1000
+    return codec, channels, round(kbps), codec in LOSSLESS_CODECS
+
+
+_VERDICTS = {}  # path -> ((size, mtime, bitrate), converts)
+
+
+def converts_to_opus(path, bitrate=None):
+    """Whether a library file gets an Opus version in the export (True), or is copied as it is (False).
+
+    Lossless files always do. So do lossy files phones play badly (Dolby Atmos / E-AC-3, AC-3, WMA, …),
+    multichannel files (downmixed to stereo) and lossy files far above the Opus bitrate (KEEP_LOSSY_BELOW).
+    Small MP3, AAC, Vorbis and all Opus files are copied as they are. Files mutagen can't read are copied too.
+    """
+    path = Path(path)
+    ext = path.suffix.lower()
+    if ext in LOSSLESS_EXTS:
+        return True
+    target = bitrate or SETTINGS["bitrate"]
+    try:
+        st = path.stat()
+    except OSError:  # gone (just renamed, say): the last verdict, else the extension alone
+        cached = _VERDICTS.get(path)
+        return cached[1] if cached else False
+    key = (st.st_size, st.st_mtime_ns, target)
+    cached = _VERDICTS.get(path)
+    if cached and cached[0] == key:
+        return cached[1]
+    try:
+        codec, channels, kbps, lossless = stream_info(path)
+        verdict = (lossless or channels > 2 or bool(codec) and codec not in PHONE_CODECS
+                   or codec in ("mp3", "aac", "vorbis") and kbps > target * KEEP_LOSSY_BELOW)
+    except Exception:
+        verdict = False
+    _VERDICTS[path] = (key, verdict)
+    return verdict
 
 
 def audio_files(folder, exts=AUDIO_EXTS):

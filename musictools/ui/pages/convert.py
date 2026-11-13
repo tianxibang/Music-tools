@@ -40,8 +40,8 @@ class ConvertPage(Page):
 
         self.go = button("Convert", "primary", "play")
         self.go.clicked.connect(self.run)
-        self.prune = button("Find orphaned Opus files", icon="trash",
-                            tip="Opus files whose FLAC was deleted or renamed")
+        self.prune = button("Find orphaned files", icon="trash",
+                            tip="Files in the export whose song was deleted or renamed, or that are converted now")
         self.prune.clicked.connect(self.find_orphans)
         self.lock(self.go, self.prune)
         card.add(hbox(self.go, self.prune, None))
@@ -79,7 +79,7 @@ class ConvertPage(Page):
         def done(orphans):
             if not orphans or self.dry.isChecked():
                 return
-            if QMessageBox.question(self, "Delete orphans", f"Delete these {len(orphans)} Opus file(s)?") \
+            if QMessageBox.question(self, "Delete orphans", f"Delete these {len(orphans)} file(s) from the export?") \
                     == QMessageBox.Yes:
                 def delete(ctx):
                     for o in orphans:

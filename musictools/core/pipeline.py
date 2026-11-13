@@ -28,7 +28,7 @@ def run(ctx, settings, steps):
         section("Convert")
         convert.convert(ctx, lib, opus, settings["bitrate"], settings["jobs"])
     if "art" in steps or "loudness" in steps:
-        tracks = library.scan(lib, ctx, {".flac"})
+        tracks = library.scan(lib, ctx)
     if "art" in steps:
         section("Cover art")
         art.copy_to_opus(ctx, tracks, lib, opus)

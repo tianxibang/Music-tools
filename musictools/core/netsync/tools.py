@@ -11,7 +11,7 @@ from pathlib import Path
 from .. import convert, pipeline, playlists
 from ..jobs import EXCLUSIVE, Cancelled, Context
 from ..tags import read_track
-from ..util import AUDIO_EXTS, LOSSLESS_EXTS, export_path_for, opus_path_for, safe_filename
+from ..util import AUDIO_EXTS, LOSSLESS_EXTS, export_path_for, safe_filename
 from .library import safe_join
 from .security import state_dir
 
@@ -189,7 +189,7 @@ def save_playlist(library, opus, name, tracks):
     for existing in [path] + [p for p in playlists.list_playlists(library) if p.stem == name and p != path]:
         if existing.is_file():
             kept += [e for e in playlists.load(existing)
-                     if e.suffix.lower() == ".flac" and not opus_path_for(e, library, opus).exists()
+                     if not export_path_for(e, library, opus).exists()
                      and e not in flacs]
     playlists.save(path, flacs + kept)
     for other in playlists.list_playlists(library):  # e.g. an older "Name.m3u": now replaced by the .m3u8

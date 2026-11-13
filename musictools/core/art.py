@@ -7,7 +7,7 @@ import urllib.parse
 import urllib.request
 
 from . import tags
-from .util import APP_NAME, APP_VERSION, opus_path_for
+from .util import APP_NAME, APP_VERSION, converts_to_opus, opus_path_for
 
 USER_AGENT = f"{APP_NAME.replace(' ', '')}/{APP_VERSION} (personal music library tool)"
 _last_mb_request = 0.0
@@ -92,7 +92,7 @@ def fetch_missing(ctx, tracks, library, opus):
             try:
                 tags.set_picture(t.path, *pic)
                 t.has_art = True
-                if t.codec == "flac":
+                if converts_to_opus(t.path):
                     o = opus_path_for(t.path, library, opus)
                     if o.exists():
                         tags.set_picture(o, *pic)
@@ -106,8 +106,8 @@ def fetch_missing(ctx, tracks, library, opus):
 
 
 def copy_to_opus(ctx, tracks, library, opus):
-    """Embed each FLAC's cover into its Opus version when the Opus file has none."""
-    pairs = [(t, opus_path_for(t.path, library, opus)) for t in tracks if t.codec == "flac" and t.has_art]
+    """Embed each converted file's cover into its Opus version when the Opus file has none."""
+    pairs = [(t, opus_path_for(t.path, library, opus)) for t in tracks if t.has_art and converts_to_opus(t.path)]
     pairs = [(t, o) for t, o in pairs if o.exists()]
     copied = 0
     for i, (t, o) in enumerate(pairs, 1):

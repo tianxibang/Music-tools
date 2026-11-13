@@ -4,7 +4,7 @@ import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from . import tags
-from .util import find_tool, opus_path_for
+from .util import converts_to_opus, find_tool, opus_path_for
 
 RG_REF = -18.0    # ReplayGain 2 reference loudness (LUFS)
 R128_REF = -23.0  # Opus R128_TRACK_GAIN reference (RFC 7845)
@@ -39,11 +39,15 @@ def tag_library(ctx, tracks, library, opus, force=False, jobs=4):
     ffmpeg = find_tool("ffmpeg")
     work = []
     for t in tracks:
-        if t.codec != "flac":
+        if not converts_to_opus(t.path):
             continue
         o = opus_path_for(t.path, library, opus)
-        need_flac = force or t.rg_gain is None
+        # ReplayGain tags are only written to FLACs; other sources (an Atmos .m4a, say) are measured when
+        # their Opus version needs its R128 gain
+        need_flac = t.codec == "flac" and (force or t.rg_gain is None)
         need_opus = o.exists() and (force or "r128_track_gain" not in _raw_keys(o))
+        if need_opus and t.codec != "flac" and t.rg_gain is None:
+            need_flac = True
         if need_flac or need_opus:
             work.append((t, o if o.exists() else None, need_flac, need_opus))
     if not work:
@@ -60,14 +64,16 @@ def tag_library(ctx, tracks, library, opus, force=False, jobs=4):
             return False
         gain = t.rg_gain
         if need_flac:
-            res = measure(ctx, t.path, ffmpeg)
+            # A downmixed or re-encoded source is measured as the phone will hear it: the Opus file itself
+            res = measure(ctx, t.path if t.codec == "flac" or o is None else o, ffmpeg)
             if not res:
                 ctx.log(f"  could not measure {t.path.name}", "error")
                 return False
             lufs, peak = res
             gain = RG_REF - lufs
-            tags.write_raw(t.path, {"REPLAYGAIN_TRACK_GAIN": f"{gain:+.2f} dB",
-                                    "REPLAYGAIN_TRACK_PEAK": f"{peak:.6f}"})
+            if t.codec == "flac":
+                tags.write_raw(t.path, {"REPLAYGAIN_TRACK_GAIN": f"{gain:+.2f} dB",
+                                        "REPLAYGAIN_TRACK_PEAK": f"{peak:.6f}"})
             t.rg_gain = gain
         if need_opus and o is not None and gain is not None:
             tags.write_raw(o, {"R128_TRACK_GAIN": str(r128_value(gain))})

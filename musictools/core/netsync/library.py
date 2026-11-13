@@ -18,7 +18,7 @@ from pathlib import Path
 
 from .. import convert, tags
 from ..jobs import Context
-from ..util import AUDIO_EXTS, export_path_for, safe_filename, trash as util_trash
+from ..util import AUDIO_EXTS, converts_to_opus, export_path_for, safe_filename, trash as util_trash
 from .security import state_dir
 
 ACCEPTED = AUDIO_EXTS
@@ -242,7 +242,7 @@ class Inbox:
             self._save(item)
 
         out = export_path_for(dst, library, opus)
-        if not out.exists() and dst.suffix.lower() != ".flac":
+        if not out.exists() and not converts_to_opus(dst):
             convert.copy_lossy(Context(), library, opus)
         elif not out.exists():
             kind, exe = convert.encoder()
