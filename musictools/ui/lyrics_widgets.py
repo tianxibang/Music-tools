@@ -6,13 +6,13 @@ from PySide6.QtGui import QColor, QFont, QFontMetricsF, QPainter, QPainterPath, 
 from PySide6.QtWidgets import QMenu, QScrollBar, QWidget
 
 from ..core.lyrics import stamp
+from ..core.util import SETTINGS
 from . import theme
 from .audio import PEAK_BIN, SR
 
 MIN_LINE = 0.1      # shortest line, in seconds
 MIN_WORD = 0.03
 EDGE = 5            # px: how close counts as grabbing an edge
-SNAP = 7            # px: edges snap to the playhead this close
 BINS_PER_SEC = SR / PEAK_BIN
 # fill, outline per singer; ad-libs get their own colour
 VOICES = {"v2": ("#14b8a6", "#2dd4bf"), "v3": ("#ec4899", "#f9a8d4")}
@@ -571,7 +571,7 @@ class Timeline(QWidget):
         self.update()
 
     def _snap(self, t):
-        return self.playhead if abs((t - self.playhead) * self.pps) <= SNAP else t
+        return self.playhead if abs((t - self.playhead) * self.pps) <= SETTINGS["timeline_snap"] else t
 
     def _apply(self, d, dt):
         """Apply a drag of dt seconds to the original times. Returns the time being edited (to scrub)."""
@@ -593,7 +593,7 @@ class Timeline(QWidget):
                 e0 = e0 if e0 is not None else w.start + 0.6
                 t = min(max(self._snap(e0 + dt), w.start + MIN_WORD), hi)
                 # dragged back onto the next word: no pause between them
-                w.end = None if after is not None and (after - t) * self.pps < SNAP else t
+                w.end = None if after is not None and (after - t) * self.pps < SETTINGS["timeline_snap"] else t
                 return t
             if j != _first_timed(line):
                 before = max((v.start for v in line.words[:j] if v.start is not None), default=line.start)
@@ -639,7 +639,7 @@ class Timeline(QWidget):
         last_word = max((w.start for w in line.words if w.start is not None), default=line.start)
         hi = nxt.start if nxt else self.duration
         t = min(max(self._snap(end0 + dt), max(line.start, last_word) + MIN_LINE), hi)
-        line.end = None if nxt and (hi - t) * self.pps < SNAP else t
+        line.end = None if nxt and (hi - t) * self.pps < SETTINGS["timeline_snap"] else t
         return t
 
     def _apply_adlib(self, b, part, dt):

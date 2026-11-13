@@ -234,7 +234,8 @@ class Inbox:
                     raise RuntimeError(ctx.error or "Import failed")
                 dst = c.dest
                 item.state = "imported"
-                item.detail = {"upgrade": f"Replaced a worse copy ({c.reason})", "lossy": "Added to the Lossy folder",
+                item.detail = {"upgrade": f"Replaced a worse copy ({c.reason})",
+                               "lossy": f"Added to the {self.settings['lossy_folder']} folder",
                                "version": "Added as another version"}.get(c.action, "")
                 self.log(f"Added {dst.relative_to(library)} to the library", "ok")
             staged.unlink(missing_ok=True)

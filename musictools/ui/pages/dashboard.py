@@ -1,6 +1,7 @@
 import os
 import time
 
+from PySide6.QtCore import QSignalBlocker
 from PySide6.QtWidgets import QCheckBox, QGridLayout, QWidget
 
 from ...core import convert, pipeline, playlists, sync
@@ -96,6 +97,11 @@ class DashboardPage(Page):
 
         self.refresh()
         self.refresh_phone()
+
+    def load_settings(self):
+        """Show values changed on the Settings page."""
+        with QSignalBlocker(self.watch_sync):
+            self.watch_sync.setChecked(SETTINGS["watch_sync"])
 
     def on_show(self):
         self.refresh()

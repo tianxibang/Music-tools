@@ -4,13 +4,10 @@ to <opus>/Playlists pointing at the Opus files, which then sync to the phone lik
 import os
 from pathlib import Path
 
-from .util import export_path_for, safe_filename
-
-FOLDER = "Playlists"
-
+from .util import SETTINGS, export_path_for, safe_filename
 
 def folder(library):
-    return Path(library) / FOLDER
+    return Path(library) / SETTINGS["playlists_folder"]
 
 
 def list_playlists(library):
@@ -76,7 +73,7 @@ def drop(library, paths):
 def export(ctx, library, opus):
     """Write Opus versions of every playlist into <opus>/Playlists."""
     library, opus = Path(library), Path(opus)
-    out_dir = opus / FOLDER
+    out_dir = opus / SETTINGS["playlists_folder"]
     pls = list_playlists(library)
     written = set()
     for pl in pls:

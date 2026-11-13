@@ -21,7 +21,6 @@ from .client import Client, SyncError
 from .security import Identity, state_dir
 
 ROOTS = {"flac": ["library"], "opus": ["opus"], "both": ["library", "opus"]}
-BIG_DELETE = 50  # more removals than this (and over 10 % of the files) need a confirmation
 _NAMES = {"library": "Library", "opus": "Opus export"}
 
 
@@ -183,7 +182,7 @@ class Follower:
         got = removed = 0
         for root, (downloads, removals) in plans.items():
             synced = self.state["synced"][root]
-            if len(removals) > BIG_DELETE and len(removals) > len(synced) / 10:
+            if len(removals) > self.settings["follow_big_delete"] and len(removals) > len(synced) / 10:
                 if not ctx.ask("Remove songs?", f"The main PC no longer has {len(removals)} files that are on this "
                                                f"computer. Remove them here too (they go to the trash)?"):
                     ctx.log(f"Kept {len(removals)} files the main PC no longer has.", "warn")

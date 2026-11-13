@@ -29,7 +29,7 @@ from mutagen.id3 import ID3, USLT, ID3NoHeaderError
 from mutagen.mp4 import MP4
 
 from .jobs import Cancelled
-from .util import export_path_for
+from .util import SETTINGS, export_path_for
 
 SAVE_MODES = {"embed": "In the music file", "file": "In a .lrc file next to it", "both": "Both"}
 KIND_LABELS = {"": "—", "instrumental": "Instrumental", "plain": "Plain", "lines": "Synced",
@@ -544,7 +544,6 @@ def move_sidecar(old, new):
 
 
 LRCLIB = "https://lrclib.net/api"
-REQUEST_GAP = 1.0          # seconds between requests to LRCLIB: it's a free service, so go easy on it
 _request_lock = threading.Lock()
 _last_request = 0.0
 
@@ -570,7 +569,7 @@ def _lrclib(endpoint, params, timeout=15, ctx=None):
     url = f"{LRCLIB}/{endpoint}?{urllib.parse.urlencode(params)}"
     for attempt in range(4):
         with _request_lock:
-            _pause(_last_request + REQUEST_GAP - time.time(), ctx)
+            _pause(_last_request + max(1.0, SETTINGS["lrclib_gap"]) - time.time(), ctx)
             _last_request = time.time()
         try:
             return json.loads(_get(url, timeout))
@@ -691,7 +690,6 @@ OUTCOMES = {ADDED: "Added", REPLACED: "Replaced", INSTRUMENTAL_FOUND: "Instrumen
             NOT_FOUND: "Not found", FAILED: "Couldn't look up", UNDONE: "Undone"}
 
 
-RECHECK_DAYS = 14   # songs found nowhere (or only unsure) aren't asked about again sooner than this
 
 
 def fetch_many(ctx, tracks, want="missing", mode="embed", library=None, opus=None, history=None, on_saved=None,
@@ -709,7 +707,7 @@ def fetch_many(ctx, tracks, want="missing", mode="embed", library=None, opus=Non
     history = history or History()
     counts = {k: 0 for k in OUTCOMES if k != UNDONE}
     recent = {i["path"] for i in history.items if i["outcome"] in (NOT_FOUND, UNSURE)
-              and time.time() - i["time"] < RECHECK_DAYS * 86400}
+              and time.time() - i["time"] < SETTINGS["lyrics_recheck_days"] * 86400}
     skipped = failures = 0
     for i, t in enumerate(tracks, 1):
         ctx.check()
@@ -773,7 +771,7 @@ def fetch_many(ctx, tracks, want="missing", mode="embed", library=None, opus=Non
                 "warn" if outcome == UNSURE else "muted")
     history.save()
     if skipped:
-        ctx.log(f"Skipped {skipped} song(s) looked up in the last {RECHECK_DAYS} days without a sure match "
+        ctx.log(f"Skipped {skipped} song(s) looked up in the last {SETTINGS['lyrics_recheck_days']} days without a sure match "
                 "(see the Added online tab).", "muted")
     return counts
 

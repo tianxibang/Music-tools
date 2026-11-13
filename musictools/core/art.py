@@ -7,7 +7,7 @@ import urllib.parse
 import urllib.request
 
 from . import tags
-from .util import APP_NAME, APP_VERSION, converts_to_opus, opus_path_for
+from .util import APP_NAME, APP_VERSION, SETTINGS, converts_to_opus, opus_path_for
 
 USER_AGENT = f"{APP_NAME.replace(' ', '')}/{APP_VERSION} (personal music library tool)"
 _last_mb_request = 0.0
@@ -52,11 +52,12 @@ def fetch_cover(artist, album, title=""):
             continue
         tried_groups = set()
         for rel in releases:
-            urls = [f"https://coverartarchive.org/release/{rel['id']}/front-500"]
+            size = SETTINGS["cover_size"]
+            urls = [f"https://coverartarchive.org/release/{rel['id']}/front-{size}"]
             rg = (rel.get("release-group") or {}).get("id")
             if rg and rg not in tried_groups:
                 tried_groups.add(rg)
-                urls.append(f"https://coverartarchive.org/release-group/{rg}/front-500")
+                urls.append(f"https://coverartarchive.org/release-group/{rg}/front-{size}")
             for url in urls:
                 try:
                     data = _get(url, timeout=30)

@@ -1,7 +1,7 @@
 """Lyrics editor: plain lyrics, syncing them to the song line by line or word by word, duets and ad-libs,
 and looking lyrics up online for many songs at once."""
 
-from PySide6.QtCore import QEvent, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QSignalBlocker, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (QAbstractItemView, QAbstractSpinBox, QApplication, QCheckBox, QComboBox, QDialog,
                                QDoubleSpinBox, QFrame, QHeaderView, QInputDialog, QLineEdit, QMenu, QMessageBox,
@@ -575,6 +575,12 @@ class LyricsPage(Page):
             return
         self.doc.instrumental = on
         self.commit()
+
+    def load_settings(self):
+        """Show values changed on the Settings page."""
+        with QSignalBlocker(self.save_mode), QSignalBlocker(self.delay):
+            self.save_mode.setCurrentIndex(list(lyrics.SAVE_MODES).index(SETTINGS["lyrics_save"]))
+            self.delay.setValue(SETTINGS["lyrics_tap_offset"])
 
     def _save_mode_changed(self):
         SETTINGS["lyrics_save"] = self.save_mode.currentData()

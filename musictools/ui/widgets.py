@@ -249,6 +249,13 @@ class Toggle(QAbstractButton):
         self._anim.setEasingCurve(QEasingCurve.OutCubic)
         self.toggled.connect(self._animate)
 
+    def checkStateSet(self):
+        # setChecked() with signals blocked (a page loading a value) never emits toggled: jump to the new state
+        super().checkStateSet()
+        if self.signalsBlocked():
+            self._anim.stop()
+            self._set_knob(1.0 if self.isChecked() else 0.0)
+
     def _animate(self, on):
         self._anim.stop()
         self._anim.setEndValue(1.0 if on else 0.0)

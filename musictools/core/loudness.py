@@ -4,7 +4,7 @@ import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from . import tags
-from .util import converts_to_opus, find_tool, opus_path_for
+from .util import SETTINGS, converts_to_opus, find_tool, opus_path_for
 
 RG_REF = -18.0    # ReplayGain 2 reference loudness (LUFS)
 R128_REF = -23.0  # Opus R128_TRACK_GAIN reference (RFC 7845)
@@ -70,7 +70,7 @@ def tag_library(ctx, tracks, library, opus, force=False, jobs=4):
                 ctx.log(f"  could not measure {t.path.name}", "error")
                 return False
             lufs, peak = res
-            gain = RG_REF - lufs
+            gain = SETTINGS["loudness_target"] - lufs
             if t.codec == "flac":
                 tags.write_raw(t.path, {"REPLAYGAIN_TRACK_GAIN": f"{gain:+.2f} dB",
                                         "REPLAYGAIN_TRACK_PEAK": f"{peak:.6f}"})

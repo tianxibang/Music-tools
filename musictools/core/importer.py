@@ -23,7 +23,6 @@ from . import convert, health, library as lib_scan, playlists, tags
 from .organize import plan_moves
 from .util import LOSSLESS_EXTS, NO_WINDOW, export_path_for, find_tool
 
-LOSSY_FOLDER = "Lossy"
 
 ACTIONS = [
     ("new", "New songs"),
@@ -241,7 +240,7 @@ def apply(ctx, candidates, settings, trash):
                     c.dest = dest
                     ctx.log(f"  upgraded  {dest.name}  ({c.reason})", "ok")
                 else:
-                    root = library / LOSSY_FOLDER if lossy else library
+                    root = library / settings["lossy_folder"] if lossy else library
                     dest = plan_moves([tags.read_track(tmp)], root, template)[0][1]
                     dest.parent.mkdir(parents=True, exist_ok=True)
                     shutil.move(str(tmp), str(dest))

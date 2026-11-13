@@ -1,3 +1,4 @@
+from PySide6.QtCore import QSignalBlocker
 from PySide6.QtWidgets import QMessageBox, QSpinBox, QComboBox
 
 from ...core import convert
@@ -61,6 +62,12 @@ class ConvertPage(Page):
                                  f"(opusenc not found — works fine, opus-tools is slightly better)</span>")
         else:
             self.encoder.setText("<span style='color:#f87171'>●</span>&nbsp; No encoder found — install opus-tools or ffmpeg")
+
+    def load_settings(self):
+        """Show values changed on the Settings page."""
+        with QSignalBlocker(self.bitrate), QSignalBlocker(self.jobs_spin):
+            self.bitrate.setCurrentText(f"{SETTINGS['bitrate']} kbps")
+            self.jobs_spin.setValue(SETTINGS["jobs"])
 
     def _save(self):
         try:

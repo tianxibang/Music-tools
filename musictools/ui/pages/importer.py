@@ -37,7 +37,8 @@ class ReviewDialog(QDialog):
         lay.setSpacing(10)
         lay.addWidget(label("Ticked files are copied into your library; the drive itself isn't changed. Upgrades "
                             "keep your library's tags and cover, and the file they replace goes to the trash. "
-                            "Lossy songs go into the “Lossy” folder of your library.", "hint", wrap=True))
+                            "Lossy songs go into their own folder of your library (Settings → Import).", "hint",
+                            wrap=True))
         self.tree = QTreeWidget()
         self.tree.setHeaderLabels(["File on the drive", "Details", "Note", "Folder"])
         self.tree.setAlternatingRowColors(True)
@@ -150,6 +151,10 @@ class ImportPage(Page):
         self.add(self.log, 1)
         self.candidates = []
         self._update_buttons()
+
+    def load_settings(self):
+        """Show values changed on the Settings page."""
+        self.check_fakes.setChecked(SETTINGS["import_check_fakes"] and bool(find_tool("ffmpeg")))
 
     def _busy(self, busy):
         super()._busy(busy)

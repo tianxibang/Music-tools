@@ -1,6 +1,6 @@
 import time
 
-from PySide6.QtCore import QSize, Qt
+from PySide6.QtCore import QSignalBlocker, QSize, Qt
 from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QInputDialog, QLineEdit, QListWidget,
                                QListWidgetItem, QMessageBox, QVBoxLayout)
 
@@ -109,6 +109,13 @@ class SyncPage(Page):
     def on_show(self):
         self.local.setText(SETTINGS["opus"])
         self.refresh()
+
+    def load_settings(self):
+        """Show values changed on the Settings page."""
+        with QSignalBlocker(self.remote), QSignalBlocker(self.keep), QSignalBlocker(self.confirm):
+            self.remote.setText(SETTINGS["remote"])
+            self.keep.setChecked(SETTINGS["keep"])
+            self.confirm.setCurrentIndex([k for k, _ in CONFIRM].index(SETTINGS["sync_confirm"]))
 
     def _save(self):
         SETTINGS["remote"] = self.remote.text().strip() or "/sdcard/Music/opus_export"

@@ -1,7 +1,7 @@
 import time
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QSignalBlocker, Qt, QTimer
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QLineEdit, QListWidget,
                                QListWidgetItem, QMessageBox, QSpinBox, QTreeWidget, QTreeWidgetItem, QVBoxLayout)
@@ -174,6 +174,17 @@ class FollowerPanel(Page):
         SETTINGS["follow_send_auto"] = self.send_auto.isChecked()
         SETTINGS["follow_new_music"] = self.new_folder.text() or SETTINGS["follow_new_music"]
         SETTINGS.save()
+        self.refresh()
+
+    def load_settings(self):
+        """Show values changed on the Settings page."""
+        with QSignalBlocker(self.get), QSignalBlocker(self.auto), QSignalBlocker(self.send_auto):
+            self.get.setCurrentIndex([k for k, _ in GETS].index(SETTINGS["follow_get"]))
+            self.auto.setChecked(SETTINGS["follow_auto"])
+            self.auto.setText(f"Sync automatically every {SETTINGS['follow_interval']} minutes while Music Tools "
+                              f"is open")
+            self.send_auto.setChecked(SETTINGS["follow_send_auto"])
+            self.new_folder.setText(SETTINGS["follow_new_music"])
         self.refresh()
 
     def on_show(self):

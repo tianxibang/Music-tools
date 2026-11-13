@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .util import LOSSLESS_EXTS, find_tool
+from .util import LOSSLESS_EXTS, SETTINGS, find_tool
 
 KINDS = ["Corrupt", "Lossy source", "Duplicate", "Possible duplicate", "Missing tags", "No cover art",
          "Low quality", "Unreadable"]
@@ -53,19 +53,25 @@ def quick_checks(tracks):
             issues.append(Issue(t.path, "Missing tags", "No " + ", ".join(missing)))
         if not t.has_art:
             issues.append(Issue(t.path, "No cover art", "No embedded front cover"))
-        if t.path.suffix.lower() in LOSSLESS_EXTS and t.sample_rate and t.sample_rate < 44100:
+        if t.path.suffix.lower() in LOSSLESS_EXTS and t.sample_rate and t.sample_rate < SETTINGS["health_min_rate"]:
             issues.append(Issue(t.path, "Low quality", f"{t.sample_rate / 1000:g} kHz sample rate"))
-        elif t.path.suffix.lower() not in LOSSLESS_EXTS and t.bitrate and t.bitrate < 128:
+        elif t.path.suffix.lower() not in LOSSLESS_EXTS and t.bitrate and t.bitrate < SETTINGS["health_min_bitrate"]:
             issues.append(Issue(t.path, "Low quality", f"{t.bitrate} kbps"))
 
     return issues + duplicate_issues(tracks)
 
 
-# Words that make a recording a different version of a song, not a copy of it. Remasters, deluxe
-# editions and featured artists don't count: those are the same recording.
-_VERSION_WORDS = re.compile(
-    r"\b(demo|live|acoustic|unplugged|remix|rmx|mix|instrumental|karaoke|a cappella|acapella|edit|"
-    r"version|cover|orchestral|piano|stripped|session|sped up|slowed|reprise|extended|rework|bootleg)\b")
+_version_re = (None, None)  # (the version_words setting, its compiled regex)
+
+
+def _version_words():
+    """The version_words setting (demo, live, …) as a regex, compiled once per value."""
+    global _version_re
+    text = SETTINGS["version_words"]
+    if _version_re[0] != text:
+        words = sorted({w.strip().lower() for w in text.split(",") if w.strip()}, key=len, reverse=True)
+        _version_re = (text, re.compile(r"\b(" + "|".join(map(re.escape, words)) + r")\b") if words else None)
+    return _version_re[1]
 
 
 def _versions(title):
@@ -73,7 +79,8 @@ def _versions(title):
     t = unicodedata.normalize("NFKD", title.lower())
     t = re.sub(r"\b(re-?master(ed)?|deluxe|bonus|explicit|clean|mono|stereo)\b", " ", t)
     t = re.sub(r"\b(feat|ft|featuring)\b.*?(?=[\)\]]|$)", " ", t)
-    return frozenset(m.group(1).replace(" ", "") for m in _VERSION_WORDS.finditer(t))
+    words = _version_words()
+    return frozenset(m.group(1).replace(" ", "") for m in words.finditer(t)) if words else frozenset()
 
 
 def _same_recording(a, b):
@@ -193,7 +200,7 @@ def spectrum_cutoff(ctx, path, ffmpeg, duration):
         if drop > best[0]:
             best = (drop, f)
     drop, f = best
-    if f is None or drop < 25:
+    if f is None or drop < SETTINGS["lossy_cliff_db"]:
         return None
     # A real cliff leaves nothing above it, not just a dip
     tail = db[(freqs > f + 300) & (freqs < rate / 2 - 300)]

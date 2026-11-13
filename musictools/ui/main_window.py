@@ -184,7 +184,7 @@ class MainWindow(QMainWindow):
         self._stable = 0
         self.watch_status = "Off"
         self.watch_timer = QTimer(self)
-        self.watch_timer.setInterval(15000)
+        self.watch_timer.setInterval(SETTINGS["watch_interval"] * 1000)
         self.watch_timer.timeout.connect(self._watch_tick)
         self.set_watch(SETTINGS["watch"])
         self.apply_role()

@@ -16,13 +16,6 @@ MUSIC = Path.home() / "Music"
 AUDIO_EXTS = {".flac", ".opus", ".ogg", ".mp3", ".m4a", ".aac", ".wav", ".wv", ".ape", ".aiff", ".aif", ".wma"}
 LOSSLESS_EXTS = {".flac", ".wav", ".wv", ".ape", ".aiff", ".aif"}
 
-# Codecs phones play well as they are. Anything else that lands in the library (Dolby Atmos / E-AC-3 or AC-3
-# in an .m4a, WMA, ALAC, …) is converted to Opus for the phone.
-PHONE_CODECS = {"mp3", "aac", "opus", "vorbis"}
-# A lossy file whose bitrate is more than this many times the Opus bitrate is converted too: the copy gets
-# much smaller and little is lost. Below that it is copied as it is (another lossy pass would only cost quality).
-KEEP_LOSSY_BELOW = 1.5
-
 
 def config_dir():
     if os.name == "nt":
@@ -38,6 +31,12 @@ DEFAULTS = {
     "library": str(MUSIC / "lossless_music"),
     "opus": str(MUSIC / "opus_export"),
     "bitrate": 128,
+    # Codecs phones play well as they are. Anything else that lands in the library (Dolby Atmos / E-AC-3 or
+    # AC-3 in an .m4a, WMA, ALAC, …) is converted to Opus for the phone.
+    "phone_codecs": ["mp3", "aac", "opus", "vorbis"],
+    # A lossy file whose bitrate is more than this many times the Opus bitrate is converted too: the copy gets
+    # much smaller and little is lost. Below that it is copied as it is (another lossy pass only costs quality).
+    "keep_lossy_below": 1.5,
     "jobs": os.cpu_count() or 4,
     "remote": "/sdcard/Music/opus_export",
     "keep": False,
@@ -51,6 +50,7 @@ DEFAULTS = {
     "tool_adb": "",
     "watch": False,
     "watch_sync": False,
+    "watch_interval": 15,            # seconds between looks at the library
     "pipeline_steps": ["convert", "art", "loudness", "playlists", "sync"],
     "rename_template": "{artist} - {title}",
     "sort_template": "{albumartist}/{album}/{track:02} - {title}",
@@ -67,6 +67,22 @@ DEFAULTS = {
     "follow_interval": 30,           # minutes
     "follow_send_auto": False,
     "follow_new_music": str(MUSIC / "New music"),
+    "follow_big_delete": 50,         # more removals than this (and over 10 % of the files) need a confirmation
+    "lossy_folder": "Lossy",         # library subfolder for MP3/AAC imports
+    "playlists_folder": "Playlists",
+    "health_min_rate": 44100,        # Hz: lossless files below this are "low quality"
+    "health_min_bitrate": 128,       # kbps: lossy files below this are "low quality"
+    "lossy_cliff_db": 25,            # dB drop in the highs that marks a FLAC made from a lossy file
+    # Words that make a recording a different version of a song, not a copy of it. Remasters, deluxe editions
+    # and featured artists don't count: those are the same recording.
+    "version_words": "demo, live, acoustic, unplugged, remix, rmx, mix, instrumental, karaoke, a cappella, "
+                     "acapella, edit, version, cover, orchestral, piano, stripped, session, sped up, slowed, "
+                     "reprise, extended, rework, bootleg",
+    "cover_size": 500,               # px, from the Cover Art Archive: 250 | 500 | 1200
+    "loudness_target": -18.0,        # LUFS that ReplayGain / R128 tags aim for (ReplayGain 2 standard: -18)
+    "lrclib_gap": 1.0,               # seconds between requests to LRCLIB: it's a free service, so go easy on it
+    "lyrics_recheck_days": 14,       # songs found nowhere (or only unsure) aren't asked about again sooner
+    "timeline_snap": 7,              # px: lyric edges snap to the playhead this close
     "import_check_fakes": True,
     "lyrics_save": "embed",          # embed | file | both (lyrics.SAVE_MODES)
     "lyrics_tap_offset": 0.0,        # seconds taken off each tap, for reaction time
@@ -86,7 +102,18 @@ class Settings(dict):
             s.update(json.loads(cls.path.read_text(encoding="utf-8")))
         except (OSError, ValueError):
             pass
+        s.validate()
         return s
+
+    def validate(self):
+        """Put back the default of any option whose value is unusable (edited by hand, say), and keep the rest
+        inside its limits."""
+        from .options import BY_KEY
+        for key, opt in BY_KEY.items():
+            try:
+                self[key] = opt.check(self[key])
+            except (TypeError, ValueError):
+                self[key] = DEFAULTS[key]
 
     def save(self):
         try:
@@ -215,8 +242,8 @@ def converts_to_opus(path, bitrate=None):
     """Whether a library file gets an Opus version in the export (True), or is copied as it is (False).
 
     Lossless files always do. So do lossy files phones play badly (Dolby Atmos / E-AC-3, AC-3, WMA, …),
-    multichannel files (downmixed to stereo) and lossy files far above the Opus bitrate (KEEP_LOSSY_BELOW).
-    Small MP3, AAC, Vorbis and all Opus files are copied as they are. Files mutagen can't read are copied too.
+    multichannel files (downmixed to stereo) and lossy files far above the Opus bitrate (keep_lossy_below).
+    Smaller files in the phone_codecs formats are copied as they are. Files mutagen can't read are copied too.
     """
     path = Path(path)
     ext = path.suffix.lower()
@@ -228,14 +255,15 @@ def converts_to_opus(path, bitrate=None):
     except OSError:  # gone (just renamed, say): the last verdict, else the extension alone
         cached = _VERDICTS.get(path)
         return cached[1] if cached else False
-    key = (st.st_size, st.st_mtime_ns, target)
+    phone, keep = frozenset(SETTINGS["phone_codecs"]), SETTINGS["keep_lossy_below"]
+    key = (st.st_size, st.st_mtime_ns, target, phone, keep)
     cached = _VERDICTS.get(path)
     if cached and cached[0] == key:
         return cached[1]
     try:
         codec, channels, kbps, lossless = stream_info(path)
-        verdict = (lossless or channels > 2 or bool(codec) and codec not in PHONE_CODECS
-                   or codec in ("mp3", "aac", "vorbis") and kbps > target * KEEP_LOSSY_BELOW)
+        verdict = (lossless or channels > 2 or bool(codec) and codec not in phone
+                   or codec != "opus" and kbps > target * keep)
     except Exception:
         verdict = False
     _VERDICTS[path] = (key, verdict)
