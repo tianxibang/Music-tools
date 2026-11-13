@@ -5,3 +5,9 @@ __pycache__/
 *.pyc
 bin/
 *.egg-info/
+
+# Signing keys and their base64 copies never go in the repo
+secret.txt
+*.jks
+*.keystore
+*.b64
