@@ -76,7 +76,10 @@ def window(tmp_path, monkeypatch, qapp):
 @pytest.fixture(scope="module")
 def qapp():
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-    from PySide6.QtWidgets import QApplication
+    try:
+        from PySide6.QtWidgets import QApplication
+    except ImportError as e:  # a CI runner without Qt's graphics libraries (libEGL)
+        pytest.skip(f"Qt widgets unavailable: {e}")
     return QApplication.instance() or QApplication([])
 
 
