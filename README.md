@@ -21,12 +21,16 @@ desktop can follow the main PC the same way, with its own FLAC and/or Opus copy.
 
 Get the latest build from [Releases](https://github.com/tianxibang/Music-tools/releases):
 
-- **Windows**: unzip `MusicTools-windows-x64.zip` and run `MusicTools.exe`.
-- **Linux**: `tar xzf MusicTools-linux-x64.tar.gz`, then run `MusicTools/install-linux.sh` to add it to your
+- **Windows**: run `MusicTools-setup-windows-x64.exe`. It installs for your user only, so it needs no admin rights.
+  Prefer no installer? Unzip `MusicTools-windows-x64.zip` and run `MusicTools.exe`.
+- **Fedora, openSUSE**: `sudo dnf install ./MusicTools-linux-x64.rpm`
+- **Debian, Ubuntu**: `sudo apt install ./MusicTools-linux-x64.deb`
+- **Other Linux**: `tar xzf MusicTools-linux-x64.tar.gz`, then run `MusicTools/install-linux.sh` to add it to your
   app menu (or just start `MusicTools/MusicTools`).
 - **Android**: install `MusicTools-android.apk` (allow installing from your browser or files app when asked).
 
-The desktop app needs ffmpeg and opusenc; see [External programs](#external-programs).
+After that, both apps tell you about new versions and update themselves after asking you; see
+[Updates](#updates). The desktop app needs ffmpeg and opusenc; see [External programs](#external-programs).
 
 ## Getting started
 
@@ -54,6 +58,20 @@ Got a second computer? Install Music Tools there too and see [Other computers](#
 | Art & loudness | Fetch missing covers (MusicBrainz), copy covers into Opus, ReplayGain/R128 loudness tags |
 | Playlists | `.m3u8` playlists stored in `<library>/Playlists`, exported with Opus paths so they sync to the phone |
 | Organize | Folder info (size, play time, artists, genres, decades, quality), tag-based sorter, flatten |
+| Settings | Every option in one place, with a search box: folders, which formats get converted, Health check limits, loudness target, lyrics, updates, external programs… Each shows its default and can be reset; export and import move your settings to another computer |
+
+### Updates
+
+At startup the desktop app checks GitHub for a new version (turn this off in **Settings → Updates**). It shows
+what's new and asks: **Update now**, **Later**, or **Skip this version**. Updating downloads the file that fits
+how you installed Music Tools, checks it against the release's SHA-256, and installs it:
+
+- **Windows installer**: the new setup runs, closes Music Tools and starts it again.
+- **.rpm / .deb**: the package goes to dnf or apt, which asks for your password.
+- **.zip / .tar.gz**: the files are replaced once Music Tools has quit, then it starts again.
+
+The phone app looks for a new version when it opens (at most twice a day), and in **Settings → App**. Android
+asks you to confirm the update, and the first time to allow "Install unknown apps" for Music Tools.
 
 ### Lyrics
 
@@ -140,7 +158,7 @@ renaming) are used on the main PC instead, so there's always one version of the 
 | Library | Stats for the phone and the PC (songs, size, play time, free space, top artists, genres, decades, source quality). **Choose what to sync**: everything, or only the artists, albums and playlists you pick |
 | Playlists | Create, rename, reorder and delete playlists. They're saved on the PC like desktop playlists and reach every device |
 | PC | Run the PC's one-click pipeline from the phone and follow its log |
-| Settings | Folders, automatic sync, Wi-Fi only, replace FLACs with Opus, keep extra files, unpair |
+| Settings | Folders, automatic sync, Wi-Fi only, replace FLACs with Opus, keep extra files, unpair, check for updates |
 
 What a sync does:
 
@@ -225,16 +243,21 @@ cd android
 ../tests/android_interop.sh               # the app's network code against a real desktop server
 ```
 
-Needs JDK 17+ and the Android SDK (`ANDROID_HOME`, or `sdk.dir` in `android/local.properties`). The sync protocol
+Needs JDK 17 or 21 (Gradle 8.11 doesn't run on newer ones) and the Android SDK (`ANDROID_HOME`, or `sdk.dir` in `android/local.properties`). The sync protocol
 lives in `musictools/core/netsync/` and `android/.../net/`; the tests check that both sides agree.
 
 ### Releases
 
-Pushing a version tag builds Windows, Linux and Android, runs the tests, and publishes a GitHub release:
+Pushing a version tag builds Windows (setup and zip), Linux (rpm, deb, tar.gz) and Android, runs the tests, and
+publishes a GitHub release. Its title and notes come from the matching `## 4.2: Name (date)` section of
+CHANGELOG.md (`packaging/release_notes.py`), so write that first and bump `APP_VERSION` and `pyproject.toml`:
 
 ```bash
-git tag v4.1 && git push origin v4.1
+git tag v4.2 && git push origin v4.2
 ```
+
+The installers are built from `packaging/`: the Inno Setup script for Windows and the nfpm config for Linux. Each
+puts an `install-kind` file next to the app, which tells the updater how that copy updates.
 
 The Android version code follows from the tag (3.1.2 → 30102), so each release installs over the previous one.
 Release APKs are signed with the key in `android/keystore.properties` locally, or the `ANDROID_KEYSTORE_BASE64`

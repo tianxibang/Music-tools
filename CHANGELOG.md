@@ -2,6 +2,43 @@
 
 Downloads for every version are on the [Releases](https://github.com/tianxibang/Music-tools/releases) page.
 
+## 4.2: Updates and installers (2026-11-13)
+
+### Updates from inside the app
+- **The desktop app tells you about new versions.** At startup it checks GitHub, shows what's new and asks:
+  **Update now**, **Later** or **Skip this version**. It downloads the right file for how you installed Music Tools,
+  checks it against the release's checksum, installs it and restarts. Turn the check off, or check by hand, in
+  **Settings → Updates**.
+- **The phone app does too**: when it opens (at most twice a day) or from **Settings → App → Check for updates**.
+  Android asks you to confirm the update; the first time it also asks you to allow "Install unknown apps" for
+  Music Tools.
+
+### Installers
+- **Windows setup** (`MusicTools-setup-windows-x64.exe`): installs for your user only, so it needs no admin rights,
+  with a Start menu entry and an uninstaller. Updates run silently.
+- **Linux packages**: `.rpm` for Fedora and openSUSE, `.deb` for Debian and Ubuntu. Music Tools goes to
+  `/opt/music-tools`, with a menu entry and a `music-tools` command. Updates go through dnf or apt, which ask for
+  your password.
+- The portable `.zip` and `.tar.gz` stay, and update themselves in place.
+
+### A Settings page with everything
+- **Every option in one place**, in sections that follow the app, with a search box. Each option says what it
+  does and what its default is, and has a reset button. Changes are saved right away, and pages with their own
+  controls for an option show the change.
+- **Options that used to be fixed:** which formats the phone plays unchanged, when large lossy files get
+  converted, the folder names for lossy imports and playlists, how often the watch folder looks, when a follower
+  asks before removing files, the Health check's limits (low quality, lossy-source sensitivity, the words that mark
+  another version such as demo or live), the size of downloaded covers, the loudness target, the pause between
+  LRCLIB requests (at least a second), how long before songs without a match are looked up again, and the timeline's
+  snap distance.
+- **Export, Import and Reset all**, for moving your settings to another computer. Pairings and the phone connection
+  are never part of them.
+- A value in the settings file that can't be used (edited by hand, say) falls back to its default.
+
+### Fixes
+- Switches sometimes showed "off" for a setting that was on, after a page reloaded its values.
+- Release pages now get their notes from this changelog.
+
 ## 4.1.1: Dolby Atmos and other formats (2026-11-13)
 
 ### Convert decides by what's inside the file, not by its extension
