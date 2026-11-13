@@ -1,0 +1,50 @@
+# Linux packages (nfpm), built by CI after build.py, from the repository root:
+#   VERSION=4.2 nfpm package -f packaging/linux/nfpm.yaml -p rpm -t MusicTools-linux-x64.rpm   (and -p deb)
+# The app goes to /opt/music-tools, with a music-tools command and a menu entry.
+name: music-tools
+arch: amd64
+platform: linux
+version: ${VERSION}
+version_schema: none
+release: 1
+section: sound
+priority: optional
+maintainer: tianxibang <tianxi.bang@gmail.com>
+description: |
+  Convert, tag, check, organize and sync a FLAC library to an Android phone.
+vendor: tianxibang
+homepage: https://github.com/tianxibang/Music-tools
+license: GPL-3.0-or-later
+
+contents:
+  - src: dist/MusicTools/
+    dst: /opt/music-tools
+    type: tree
+  - src: /opt/music-tools/MusicTools
+    dst: /usr/bin/music-tools
+    type: symlink
+  - src: packaging/linux/music-tools.desktop
+    dst: /usr/share/applications/music-tools.desktop
+  - src: assets/icon.png
+    dst: /usr/share/icons/hicolor/256x256/apps/music-tools.png
+  # Tells the in-app updater to hand new versions to the package manager
+  - src: packaging/linux/install-kind-rpm
+    dst: /opt/music-tools/install-kind
+    packager: rpm
+  - src: packaging/linux/install-kind-deb
+    dst: /opt/music-tools/install-kind
+    packager: deb
+
+overrides:
+  rpm:
+    recommends:
+      - /usr/bin/ffmpeg
+      - opus-tools
+      - android-tools
+      - xcb-util-cursor
+  deb:
+    recommends:
+      - ffmpeg
+      - opus-tools
+      - adb
+      - libxcb-cursor0

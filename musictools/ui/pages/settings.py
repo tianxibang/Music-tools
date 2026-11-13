@@ -3,9 +3,11 @@ import sys
 
 from PySide6.QtWidgets import QMessageBox
 
+from ...core import update
 from ...core.util import APP_NAME, APP_VERSION, SETTINGS, find_tool
 from ..main_window import Page
-from ..widgets import Card, FormGrid, PathPicker, button, hbox, label
+from ..update_dialog import KIND_NAMES, check_now
+from ..widgets import Card, FormGrid, PathPicker, Toggle, button, hbox, label
 
 TOOLS = [("opusenc", "opusenc", "opus-tools — best Opus encoder (optional if ffmpeg is installed)"),
          ("ffmpeg", "ffmpeg", "Conversion fallback, loudness, health checks"),
@@ -21,7 +23,7 @@ INSTALL_HINTS = {
 
 class SettingsPage(Page):
     title = "Settings"
-    subtitle = "Folders and external tools. Changes are saved when you press Save."
+    subtitle = "Folders, external tools and updates. Changes are saved when you press Save."
     icon = "settings"
 
     def __init__(self, win):
@@ -49,6 +51,14 @@ class SettingsPage(Page):
         tools.add(label(INSTALL_HINTS.get(sys.platform if sys.platform == "win32" else "linux"), "hint", wrap=True))
         self.add(tools)
 
+        updates = Card("Updates", f"New versions come from GitHub. You'll see what's new and choose when to "
+                       f"install. This copy is installed as: {KIND_NAMES[update.install_kind()]}.", icon="refresh")
+        self.update_check = Toggle("Check for updates when Music Tools starts", SETTINGS["update_check"])
+        self.check_btn = button("Check now", icon="refresh")
+        self.check_btn.clicked.connect(self.check_updates)
+        updates.add(hbox(self.update_check, None, self.check_btn))
+        self.add(updates)
+
         save = button("Save", "primary", "check")
         save.clicked.connect(self.save)
         self.add(hbox(save, None))
@@ -68,6 +78,11 @@ class SettingsPage(Page):
                          f"<span style='color:#8a91a3'>{found or 'not found'}</span>")
         self.tool_status.setText("<br>".join(parts))
 
+    def check_updates(self):
+        self.check_btn.setEnabled(False)
+        self.check_btn.setText("Checking…")
+        check_now(self.win, lambda: (self.check_btn.setEnabled(True), self.check_btn.setText("Check now")))
+
     def save(self):
         lib, opus = self.library.text(), self.opus.text()
         if not os.path.isdir(lib):
@@ -80,6 +95,7 @@ class SettingsPage(Page):
         SETTINGS["library"], SETTINGS["opus"] = lib, opus
         for key, picker in self.tool_fields.items():
             SETTINGS[f"tool_{key}"] = picker.text()
+        SETTINGS["update_check"] = self.update_check.isChecked()
         SETTINGS.save()
         self.on_show()
         if changed:

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Music Tools
+Comment=Convert, tag, check and sync your music library
+Exec=/usr/bin/music-tools
+Icon=music-tools
+Terminal=false
+Categories=AudioVideo;Audio;Utility;
+StartupWMClass=music-tools

@@ -190,6 +190,8 @@ class MainWindow(QMainWindow):
         self.apply_role()
 
         self.store.reload()
+        from .update_dialog import check_on_startup
+        check_on_startup(self)
 
     def apply_role(self):
         """Main library, or a follower of another PC: tools that change the library move to the main PC."""

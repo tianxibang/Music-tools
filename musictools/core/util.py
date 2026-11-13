@@ -71,6 +71,8 @@ DEFAULTS = {
     "lyrics_save": "embed",          # embed | file | both (lyrics.SAVE_MODES)
     "lyrics_tap_offset": 0.0,        # seconds taken off each tap, for reaction time
     "lyrics_filter": "all",
+    "update_check": True,            # look for a new version on GitHub at startup
+    "update_skip": "",               # release tag the user chose to skip
 }
 
 
